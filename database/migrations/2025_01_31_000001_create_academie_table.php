@@ -2,6 +2,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 class CreateAcademieTable extends Migration
 {
@@ -14,6 +15,7 @@ class CreateAcademieTable extends Migration
             $table->date('date_creation')->default(DB::raw('CURRENT_DATE'));
             $table->float('plan_base')->nullable();
             $table->float('plan_premium')->nullable();
+            $table->timestamps();
         });
     }
 

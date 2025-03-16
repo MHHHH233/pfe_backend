@@ -11,6 +11,7 @@ class CreateReviewsTable extends Migration
             $table->increments('id_review');
             $table->string('name', 50)->nullable();
             $table->string('description', 100)->nullable();
+            $table->timestamps();
         });
     }
 

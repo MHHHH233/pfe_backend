@@ -12,7 +12,9 @@ use App\Http\Controllers\Api\AuthController;
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-
+Route::get('/logout', [AuthController::class, 'logout']);
+Route::get('/me', [AuthController::class, 'me']);
+Route::get('/getUserByToken/{token}', [AuthController::class, 'getUserByToken']);
 
 // Include admin and user routes
 require __DIR__ . '/Api/admin/v1.php';

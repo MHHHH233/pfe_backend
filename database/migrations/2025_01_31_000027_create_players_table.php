@@ -9,7 +9,7 @@ class CreatePlayersTable extends Migration
     {
         Schema::create('players', function (Blueprint $table) {
             $table->increments('id_player');
-            $table->integer('id_compte')->unsigned()->nullable();
+            $table->unsignedInteger('id_compte')->nullable();
             $table->string('position', 50)->nullable();
             $table->integer('total_matches')->nullable();
             $table->integer('rating')->nullable();
@@ -19,7 +19,12 @@ class CreatePlayersTable extends Migration
             $table->integer('invites_accepted')->nullable();
             $table->integer('invites_refused')->nullable();
             $table->integer('total_invites')->nullable();
-            $table->foreign('id_compte')->references('id_compte')->on('compte');
+            $table->timestamps();
+
+            $table->foreign('id_compte')
+                  ->references('id_compte')
+                  ->on('compte')
+                  ->onDelete('set null');
         });
     }
 

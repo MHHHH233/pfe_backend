@@ -11,6 +11,7 @@ class CreateAnalyticsTable extends Migration
             $table->increments('analytic_id');
             $table->string('analytic_name', 255);
             $table->float('total');
+            $table->timestamps();
         });
     }
 

@@ -10,10 +10,17 @@ class CreateActivitesMembersTable extends Migration
         Schema::create('activites_members', function (Blueprint $table) {
             $table->increments('id_member');
             $table->unsignedInteger('id_compte')->nullable();
-            $table->integer('id_activites')->unsigned()->nullable();
+            $table->unsignedInteger('id_activites')->nullable();
+            $table->timestamps();
 
-            $table->foreign('id_compte')->references('id_compte')->on('compte')->onDelete('cascade');
-            $table->foreign('id_activites')->references('id_activites')->on('academie_activites');
+            $table->foreign('id_compte')
+                  ->references('id_compte')
+                  ->on('compte')
+                  ->onDelete('cascade');
+            $table->foreign('id_activites')
+                  ->references('id_activites')
+                  ->on('academie_activites')
+                  ->onDelete('set null');
         });
     }
 

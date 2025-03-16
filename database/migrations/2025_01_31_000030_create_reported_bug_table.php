@@ -9,9 +9,14 @@ class CreateReportedBugTable extends Migration
     {
         Schema::create('reported_bug', function (Blueprint $table) {
             $table->increments('id_bug');
-            $table->integer('id_compte')->unsigned()->nullable();
+            $table->unsignedInteger('id_compte')->nullable();
             $table->text('description')->nullable();
-            $table->foreign('id_compte')->references('id_compte')->on('compte');
+            $table->timestamps();
+
+            $table->foreign('id_compte')
+                  ->references('id_compte')
+                  ->on('compte')
+                  ->onDelete('set null');
         });
     }
 

@@ -9,7 +9,7 @@ class CreateTeamsTable extends Migration
     {
         Schema::create('teams', function (Blueprint $table) {
             $table->increments('id_teams');
-            $table->integer('capitain')->unsigned()->nullable();
+            $table->unsignedInteger('capitain')->nullable();
             $table->integer('total_matches')->nullable();
             $table->integer('rating')->nullable();
             $table->time('starting_time')->nullable();
@@ -18,7 +18,12 @@ class CreateTeamsTable extends Migration
             $table->integer('invites_accepted')->nullable();
             $table->integer('invites_refused')->nullable();
             $table->integer('total_invites')->nullable();
-            $table->foreign('capitain')->references('id_compte')->on('compte');
+            $table->timestamps();
+
+            $table->foreign('capitain')
+                  ->references('id_compte')
+                  ->on('compte')
+                  ->onDelete('set null');
         });
     }
 

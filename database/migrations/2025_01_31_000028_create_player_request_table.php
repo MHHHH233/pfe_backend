@@ -9,13 +9,21 @@ class CreatePlayerRequestTable extends Migration
     {
         Schema::create('player_request', function (Blueprint $table) {
             $table->increments('id_request');
-            $table->integer('sender')->unsigned()->nullable();
-            $table->integer('receiver')->unsigned()->nullable();
+            $table->unsignedInteger('sender')->nullable();
+            $table->unsignedInteger('receiver')->nullable();
             $table->date('match_date')->nullable();
             $table->time('starting_time')->nullable();
             $table->string('message', 50)->nullable();
-            $table->foreign('sender')->references('id_player')->on('players');
-            $table->foreign('receiver')->references('id_player')->on('players');
+            $table->timestamps();
+
+            $table->foreign('sender')
+                  ->references('id_player')
+                  ->on('players')
+                  ->onDelete('set null');
+            $table->foreign('receiver')
+                  ->references('id_player')
+                  ->on('players')
+                  ->onDelete('set null');
         });
     }
 

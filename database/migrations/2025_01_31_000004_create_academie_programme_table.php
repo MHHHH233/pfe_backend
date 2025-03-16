@@ -9,12 +9,16 @@ class CreateAcademieProgrammeTable extends Migration
     {
         Schema::create('academie_programme', function (Blueprint $table) {
             $table->increments('id_programme');
-            $table->integer('id_academie')->unsigned()->nullable();
+            $table->unsignedInteger('id_academie')->nullable();
             $table->string('jour', 20)->nullable();
             $table->time('horaire')->nullable();
             $table->string('programme', 100)->nullable();
+            $table->timestamps();
 
-            $table->foreign('id_academie')->references('id_academie')->on('academie');
+            $table->foreign('id_academie')
+                  ->references('id_academie')
+                  ->on('academie')
+                  ->onDelete('set null');
         });
     }
 

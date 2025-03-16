@@ -9,13 +9,17 @@ class CreateAcademieCoachTable extends Migration
     {
         Schema::create('academie_coach', function (Blueprint $table) {
             $table->increments('id_coach');
-            $table->integer('id_academie')->unsigned()->nullable();
+            $table->unsignedInteger('id_academie')->nullable();
             $table->string('nom', 20)->nullable();
             $table->text('pfp')->nullable();
             $table->text('description')->nullable();
             $table->text('instagram')->nullable();
+            $table->timestamps();
 
-            $table->foreign('id_academie')->references('id_academie')->on('academie');
+            $table->foreign('id_academie')
+                  ->references('id_academie')
+                  ->on('academie')
+                  ->onDelete('set null');
         });
     }
 

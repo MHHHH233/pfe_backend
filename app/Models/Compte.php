@@ -3,15 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Spatie\Permission\Traits\HasRoles;
 
-class Compte extends Model
+class Compte extends Authenticatable
 {
+    use HasApiTokens, HasRoles;
     protected $table = 'compte';
     protected $primaryKey = 'id_compte';
     public $timestamps = false;
 
     protected $fillable = [
-        'nom',
+        'name',
         'prenom',
         'age',
         'email',
@@ -19,7 +23,8 @@ class Compte extends Model
         'type',
         'pfp',
         'telephone',
-        'date_inscription'
+        'created_at',
+        'updated_at'
     ];
 
     public function player()

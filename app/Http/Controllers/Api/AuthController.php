@@ -4,49 +4,71 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AuthResource;
+use App\Http\Resources\user\V1\CompteResource;
 use App\Models\Compte;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Sanctum\PersonalAccessToken;
+use Illuminate\Support\Facades\File;
 
 class AuthController extends Controller
 {
+    private function getRandomProfilePicture()
+    {
+        $path = public_path('images/default_pfp');
+        $files = File::files($path);
+        
+        if (count($files) === 0) {
+            return 'images/default_pfp/default.png';
+        }
+        
+        $randomFile = $files[array_rand($files)];
+        return 'images/default_pfp/' . $randomFile->getFilename();
+    }
+
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
+            'prenom' => 'required|string|max:255',
+            'age' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:compte',
             'password' => 'required|string|min:8|confirmed',
+            'telephone' => 'required|string|max:255',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(
-                [
-                    'status' => false,
-                    'code' => 422,
-                    'message' => 'validation error',
-                    'errors' => $validator->errors(),
-                ],
-                422,
-            );
+            return response()->json([
+                'status' => false,
+                'code' => 422,
+                'message' => 'validation error',
+                'errors' => $validator->errors(),
+            ], 422);
         }
 
         $user = Compte::create([
-            'nom' => $request->nom,
+            'name' => $request->name,
             'prenom' => $request->prenom,
             'age' => $request->age,
             'email' => $request->email,
-            'password' => Hash::make($request->password),                        
-            'telephone' => $request->telephone,            
+            'password' => Hash::make($request->password),
+            'telephone' => $request->telephone,
+            'pfp' => $this->getRandomProfilePicture(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
-        // Assign the specified role to the new user
+        // Change this line - assign 'user' role instead of 'sanctum'
         $user->assignRole('user');
-        $user->input('date_inscription', now());
 
-        return response()->json(['status' => true, 'code' => 201, 'message' => 'User registered successfully','data'=>$user], 201);
+        return response()->json([
+            'status' => true,
+            'code' => 201,
+            'message' => 'User registered successfully',
+            'data' => $user
+        ], 201);
     }
 
     public function login(Request $request)
@@ -89,9 +111,6 @@ class AuthController extends Controller
         );
     }
 
-
-
-
     public function logout(Request $request)
     {
         // Check if the user is authenticated
@@ -119,15 +138,11 @@ class AuthController extends Controller
         ]);
     }
 
-
-
     public function me(Request $request)
     {
         return CompteResource::collection([$request->user()]);
     }
 
-
-    
     public function getUserByToken(Request $request)
     {
         $request->validate([
