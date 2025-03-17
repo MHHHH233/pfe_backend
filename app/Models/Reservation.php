@@ -8,7 +8,7 @@ class Reservation extends Model
 {
     protected $table = 'reservation';
     protected $primaryKey = 'id_reservation';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'id_client',

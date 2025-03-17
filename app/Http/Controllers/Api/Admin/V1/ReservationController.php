@@ -114,7 +114,7 @@ class ReservationController extends Controller
     }
 
      /**
-     * Store a newly created Blane.
+     * Store a newly created reservation.
      *
      * @param Request $request
      * @return JsonResponse
@@ -149,7 +149,7 @@ class ReservationController extends Controller
                     ], 409);
                 }
 
-                if ($existingReservation->id_client === $validatedData['id_client']) {
+                if (isset($validatedData['id_client']) && $existingReservation->id_client === $validatedData['id_client']) {
                     return response()->json([
                         'error' => true,
                         'message' => 'Vous avez déjà réservé cette horaire dans ce terrain.'
@@ -161,23 +161,26 @@ class ReservationController extends Controller
             Reservation::where(DB::raw("CONCAT(date, ' ', heure)"), '<', now())->delete();
 
             // Create new reservation based on user type
+            $reservationData = [
+                'id_terrain' => $validatedData['id_terrain'],
+                'date' => $validatedData['date'],
+                'heure' => $validatedData['heure'],
+            ];
+
             if ($validatedData['type'] === 'admin') {
-                $reservation = Reservation::create([
-                    'id_terrain' => $validatedData['id_terrain'],
-                    'date' => $validatedData['date'],
-                    'heure' => $validatedData['heure'],
-                    'etat' => 'reserver',
-                    'Name' => $validatedData['Name']
-                ]);
+                $reservationData['etat'] = 'reserver';
+                $reservationData['Name'] = $validatedData['Name'] ?? null;
+                
+                // If id_client is provided for admin reservation, include it
+                if (isset($validatedData['id_client'])) {
+                    $reservationData['id_client'] = $validatedData['id_client'];
+                }
             } else {
-                $reservation = Reservation::create([
-                    'id_client' => $validatedData['id_client'],
-                    'id_terrain' => $validatedData['id_terrain'],
-                    'date' => $validatedData['date'],
-                    'heure' => $validatedData['heure'],
-                    'etat' => 'en attente'
-                ]);
+                $reservationData['id_client'] = $validatedData['id_client'];
+                $reservationData['etat'] = 'en attente';
             }
+
+            $reservation = Reservation::create($reservationData);
 
             return response()->json([
                 'success' => true,

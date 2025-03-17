@@ -11,7 +11,7 @@ class CompteSeeder extends Seeder
     {
         DB::table('compte')->insert([
             [
-                'name' => 'Admin',
+                'nom' => 'Admin',
                 'prenom' => 'Admin',
                 'age' => '20',
                 'email' => 'admin@example.com',
@@ -23,7 +23,7 @@ class CompteSeeder extends Seeder
                 'updated_at' => now(),
             ],
             [
-                'name' => 'User',
+                'nom' => 'User',
                 'prenom' => 'User',
                 'age' => '20',
                 'email' => 'user@example.com',

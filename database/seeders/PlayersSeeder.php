@@ -23,6 +23,20 @@ class PlayersSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            [
+                'id_compte' => 2,
+                'position' => 'Midfielder',
+                'total_matches' => 8,
+                'rating' => 4,
+                'starting_time' => '10:00:00',
+                'finishing_time' => '19:00:00',
+                'misses' => 1,
+                'invites_accepted' => 4,
+                'invites_refused' => 1,
+                'total_invites' => 5,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
     }
 } 

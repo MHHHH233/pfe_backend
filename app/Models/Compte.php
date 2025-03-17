@@ -6,25 +6,25 @@ use Illuminate\Database\Eloquent\Model;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Notifications\Notifiable;
 
 class Compte extends Authenticatable
 {
-    use HasApiTokens, HasRoles;
+    use HasApiTokens, HasFactory, Notifiable, HasRoles;
     protected $table = 'compte';
     protected $primaryKey = 'id_compte';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
-        'name',
+        'nom',
         'prenom',
         'age',
         'email',
         'password',
-        'type',
+        'role',
         'pfp',
         'telephone',
-        'created_at',
-        'updated_at'
     ];
 
     public function player()

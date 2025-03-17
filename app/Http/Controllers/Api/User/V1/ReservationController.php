@@ -99,7 +99,7 @@ class ReservationController extends Controller
             $query->with($includes);
         }
 
-        $reservation = $query->find($id);
+        $reservation = $query->find('id_client', $id);
 
         if (!$reservation) {
             return response()->json(['message' => 'Reservation not found'], 404);
@@ -112,7 +112,7 @@ class ReservationController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'id_client' => 'nullable|integer|exists:compte,id_compte',
+                'id_client' => 'required|integer|exists:compte,id_compte',
                 'id_terrain' => 'required|integer|exists:terrain,id_terrain',
                 'date' => 'required|date',
                 'heure' => 'required|date_format:H:i:s',

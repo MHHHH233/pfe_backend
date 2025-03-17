@@ -28,7 +28,7 @@ Route::prefix('admin')->as('admin.')->group(function () {
         
         Route::apiResource('comptes', CompteController::class);
         Route::patch('comptes/{id}/reset-password', [CompteController::class, 'resetPassword']);
-        Route::patch('comptes/{id}/update-role', [CompteController::class, 'updateRole']);
+        Route::patch('comptes/{id}/update-role', [CompteController::class, 'assignRoles']);
         
 
         Route::apiResource('tournois', TournoiController::class);

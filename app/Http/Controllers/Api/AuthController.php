@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\File;
 
 class AuthController extends Controller
 {
-    private function getRandomProfilePicture()
+    public function getRandomProfilePicture()
     {
         $path = public_path('images/default_pfp');
         $files = File::files($path);

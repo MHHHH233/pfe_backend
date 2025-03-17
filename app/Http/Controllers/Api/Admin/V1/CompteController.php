@@ -7,6 +7,7 @@ use App\Models\Compte;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\File;
 use Illuminate\Validation\ValidationException;
 use App\Http\Resources\Admin\V1\CompteResource;
 
@@ -71,6 +72,22 @@ class CompteController extends Controller
     }
 
     /**
+     * Get a random profile picture from available defaults
+     */
+    public function getRandomProfilePicture()
+    {
+        $path = public_path('images/default_pfp');
+        $files = File::files($path);
+        
+        if (count($files) === 0) {
+            return 'images/default_pfp/default.png';
+        }
+        
+        $randomFile = $files[array_rand($files)];
+        return 'images/default_pfp/' . $randomFile->getFilename();
+    }
+
+    /**
      * Create a new user
      */
     public function store(Request $request): JsonResponse
@@ -83,10 +100,12 @@ class CompteController extends Controller
                 'password' => 'required|string|min:8',
                 'telephone' => 'required|string|max:20',
                 'age' => 'required|integer',                
-                'role' => 'required|string|in:admin,user'
+                'role' => 'required|string|in:admin,user',
             ]);
 
             $validatedData['password'] = Hash::make($validatedData['password']);
+            $validatedData['pfp'] = $this->getRandomProfilePicture();
+            
             $user = Compte::create($validatedData);
             $user->assignRole($validatedData['role']);
 
@@ -143,7 +162,7 @@ class CompteController extends Controller
         }
     }
 
- /**
+    /**
      * Assign roles to a user.
      *
      * @param Request $request
@@ -154,30 +173,33 @@ class CompteController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'roles' => 'required|array', // Roles to assign
-                'roles.*' => 'string|exists:roles,name', // Validate each role
+                'roles' => 'required|string|exists:roles,name', 
             ]);
+            
+            
+            $user = Compte::find($id);
+
+            if (!$user) {
+                return response()->json(['message' => 'compte not found'], 404);
+            }
+
+            try {
+                // Try direct assignment
+                $user->update(['role' => $validatedData['roles']]);
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Role assigned successfully',
+                    'data' => new CompteResource($user),
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Failed to assign role',
+                    'error' => $e->getMessage(),
+                ], 500);
+            }
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
-        }
-
-        $user = Compte::find($id);
-
-        if (!$user) {
-            return response()->json(['message' => 'compte not found'], 404);
-        }
-
-        try {
-            $user->syncRoles($validatedData['roles']); // Sync roles
-            return response()->json([
-                'message' => 'Roles assigned successfully',
-                'data' => new CompteResource($user),
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to assign roles',
-                'error' => $e->getMessage(),
-            ], 500);
         }
     }
 

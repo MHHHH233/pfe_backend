@@ -21,11 +21,11 @@ class PlayerRequest extends Model
     // Relationships
     public function sender()
     {
-        return $this->belongsTo(Player::class, 'sender', 'id_player');
+        return $this->belongsTo(Players::class, 'sender', 'id_player');
     }
 
     public function receiver()
     {
-        return $this->belongsTo(Player::class, 'receiver', 'id_player');
+        return $this->belongsTo(Players::class, 'receiver', 'id_player');
     }
 }

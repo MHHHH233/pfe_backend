@@ -9,7 +9,7 @@ class CreateCompteTable extends Migration
     {
         Schema::create('compte', function (Blueprint $table) {
             $table->increments('id_compte');
-            $table->string('name');
+            $table->string('nom');
             $table->string('prenom');
             $table->string('age');
             $table->string('email')->unique();
