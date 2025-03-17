@@ -12,6 +12,8 @@ class CreateTerrainTable extends Migration
             $table->string('nom_terrain', 100)->nullable();
             $table->enum('capacite', ['5v5', '6v6', '7v7'])->nullable();
             $table->enum('type', ['indoor', 'outdoor'])->nullable();
+            $table->float('prix');
+            $table->string('image_path')->nullable();
             $table->timestamps();
         });
     }

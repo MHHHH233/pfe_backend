@@ -18,28 +18,71 @@ class ReservationController extends Controller
             $query = DB::table('reservation')
                 ->select([
                     'reservation.id_reservation',
+                    'reservation.num_res',
                     'reservation.id_client',
-                    DB::raw('COALESCE(compte.nom, reservation.Name) AS client'),
+                    DB::raw('COALESCE(compte.nom, reservation.Name) AS client_nom'),
+                    DB::raw('COALESCE(compte.prenom, "") AS client_prenom'),
+                    DB::raw('COALESCE(compte.telephone, "") AS client_telephone'),
+                    DB::raw('COALESCE(compte.email, "") AS client_email'),
                     'reservation.id_terrain',
+                    'terrain.nom_terrain as terrain_nom',
+                    'terrain.type as terrain_type',
+                    'terrain.prix as terrain_prix',
                     'reservation.date',
                     'reservation.heure',
-                    'reservation.etat'
+                    'reservation.etat',
+                    'reservation.created_at'
                 ])
-                ->leftJoin('compte', 'reservation.id_client', '=', 'compte.id_compte');
+                ->leftJoin('compte', 'reservation.id_client', '=', 'compte.id_compte')
+                ->leftJoin('terrain', 'reservation.id_terrain', '=', 'terrain.id_terrain');
 
             // Apply any filters from the request
             if ($request->has('id_terrain')) {
-                $query->where('id_terrain', $request->input('id_terrain'));
+                $query->where('reservation.id_terrain', $request->input('id_terrain'));
             }
 
             if ($request->has('date')) {
-                $query->where('date', $request->input('date'));
+                $query->where('reservation.date', $request->input('date'));
+            }
+            
+            if ($request->has('id_client')) {
+                $query->where('reservation.id_client', $request->input('id_client'));
+            }
+            
+            if ($request->has('etat')) {
+                $query->where('reservation.etat', $request->input('etat'));
+            }
+            
+            // Apply search if provided
+            if ($request->has('search')) {
+                $search = $request->input('search');
+                $query->where(function($q) use ($search) {
+                    $q->where('reservation.num_res', 'like', "%$search%")
+                      ->orWhere('reservation.Name', 'like', "%$search%")
+                      ->orWhere('compte.nom', 'like', "%$search%")
+                      ->orWhere('compte.prenom', 'like', "%$search%")
+                      ->orWhere('compte.email', 'like', "%$search%")
+                      ->orWhere('compte.telephone', 'like', "%$search%");
+                });
+            }
+            
+            // Apply sorting
+            $sortBy = $request->input('sort_by', 'created_at');
+            $sortOrder = $request->input('sort_order', 'desc');
+            
+            $allowedSortFields = ['id_reservation', 'date', 'heure', 'etat', 'created_at'];
+            if (in_array($sortBy, $allowedSortFields)) {
+                $query->orderBy("reservation.$sortBy", $sortOrder);
+            } else {
+                $query->orderBy('reservation.created_at', 'desc');
             }
 
             // Delete past reservations
             Reservation::where(DB::raw("CONCAT(date, ' ', heure)"), '<', now())->delete();
 
-            $reservations = $query->get();
+            // Pagination
+            $perPage = $request->input('per_page', 15);
+            $reservations = $query->paginate($perPage);
 
             if ($reservations->isEmpty()) {
                 return response()->json([
@@ -49,21 +92,41 @@ class ReservationController extends Controller
             }
 
             // Transform the data to match your expected format
-            $response = $reservations->map(function ($reservation) {
+            $response = collect($reservations->items())->map(function ($reservation) {
                 return [
                     'id_reservation' => $reservation->id_reservation,
-                    'client' => $reservation->client,
-                    'id_client' => $reservation->id_client,
-                    'id_terrain' => $reservation->id_terrain,
+                    'num_res' => $reservation->num_res,
+                    'client' => [
+                        'id_client' => $reservation->id_client,
+                        'nom' => $reservation->client_nom,
+                        'prenom' => $reservation->client_prenom,
+                        'telephone' => $reservation->client_telephone,
+                        'email' => $reservation->client_email,
+                    ],
+                    'terrain' => [
+                        'id_terrain' => $reservation->id_terrain,
+                        'nom' => $reservation->terrain_nom,
+                        'type' => $reservation->terrain_type,
+                        'prix' => $reservation->terrain_prix,
+                    ],
                     'date' => $reservation->date,
                     'heure' => $reservation->heure,
-                    'etat' => $reservation->etat
+                    'etat' => $reservation->etat,
+                    'created_at' => $reservation->created_at
                 ];
             });
 
             return response()->json([
                 "status" => "success",
-                "data" => $response
+                "data" => $response,
+                "pagination" => [
+                    "total" => $reservations->total(),
+                    "per_page" => $reservations->perPage(),
+                    "current_page" => $reservations->currentPage(),
+                    "last_page" => $reservations->lastPage(),
+                    "from" => $reservations->firstItem(),
+                    "to" => $reservations->lastItem()
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -78,39 +141,73 @@ class ReservationController extends Controller
     public function show($id, Request $request)
     {
         try {
-            $request->validate([
-                'include' => [
-                    'nullable',
-                    'string',
-                    function ($attribute, $value, $fail) {
-                        $validIncludes = ['client', 'terrain'];
-                        $includes = explode(',', $value);
-                        foreach ($includes as $include) {
-                            if (!in_array($include, $validIncludes)) {
-                                $fail('The selected ' . $attribute . ' is invalid.');
-                            }
-                        }
-                    },
+            $query = DB::table('reservation')
+                ->select([
+                    'reservation.id_reservation',
+                    'reservation.num_res',
+                    'reservation.id_client',
+                    'reservation.id_terrain',
+                    'terrain.nom_terrain as terrain_nom',
+                    'terrain.type as terrain_type',
+                    'terrain.prix as terrain_prix',
+                    'terrain.description as terrain_description',
+                    'terrain.image as terrain_image',
+                    DB::raw('COALESCE(compte.nom, reservation.Name) AS client_nom'),
+                    DB::raw('COALESCE(compte.prenom, "") AS client_prenom'),
+                    DB::raw('COALESCE(compte.telephone, "") AS client_telephone'),
+                    DB::raw('COALESCE(compte.email, "") AS client_email'),
+                    'reservation.date',
+                    'reservation.heure',
+                    'reservation.etat',
+                    'reservation.created_at',
+                    'reservation.updated_at'
+                ])
+                ->leftJoin('compte', 'reservation.id_client', '=', 'compte.id_compte')
+                ->leftJoin('terrain', 'reservation.id_terrain', '=', 'terrain.id_terrain')
+                ->where('reservation.id_reservation', $id);
+
+            $reservation = $query->first();
+
+            if (!$reservation) {
+                return response()->json(['message' => 'Reservation not found'], 404);
+            }
+
+            $result = [
+                'id_reservation' => $reservation->id_reservation,
+                'num_res' => $reservation->num_res,
+                'client' => [
+                    'id_client' => $reservation->id_client,
+                    'nom' => $reservation->client_nom,
+                    'prenom' => $reservation->client_prenom,
+                    'telephone' => $reservation->client_telephone,
+                    'email' => $reservation->client_email,
                 ],
+                'terrain' => [
+                    'id_terrain' => $reservation->id_terrain,
+                    'nom' => $reservation->terrain_nom,
+                    'type' => $reservation->terrain_type,
+                    'prix' => $reservation->terrain_prix,
+                    'description' => $reservation->terrain_description,
+                    'image' => $reservation->terrain_image,
+                ],
+                'date' => $reservation->date,
+                'heure' => $reservation->heure,
+                'etat' => $reservation->etat,
+                'created_at' => $reservation->created_at,
+                'updated_at' => $reservation->updated_at
+            ];
+
+            return response()->json([
+                "status" => "success",
+                "data" => $result
             ]);
-        } catch (ValidationException $e) {
-            return response()->json(['error' => $e->errors()], 400);
+        } catch (\Exception $e) {
+            return response()->json([
+                "status" => "error",
+                "message" => "An error occurred while fetching the reservation.",
+                "error" => $e->getMessage()
+            ]);
         }
-
-        $query = Reservation::query();
-
-        if ($request->has('include')) {
-            $includes = explode(',', $request->input('include'));
-            $query->with($includes);
-        }
-
-        $reservation = $query->find($id);
-
-        if (!$reservation) {
-            return response()->json(['message' => 'Reservation not found'], 404);
-        }
-
-        return new ReservationResource($reservation);
     }
 
      /**
@@ -128,7 +225,9 @@ class ReservationController extends Controller
                 'date' => 'required|date',
                 'heure' => 'required|date_format:H:i:s',
                 'type' => 'required|string|in:admin,client',
-                'Name' => 'nullable|string|max:255'
+                'Name' => 'nullable|string|max:255',
+                'email' => 'nullable|string|email|max:255',
+                'telephone' => 'nullable|string|max:255',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -160,11 +259,74 @@ class ReservationController extends Controller
             // Delete past reservations
             Reservation::where(DB::raw("CONCAT(date, ' ', heure)"), '<', now())->delete();
 
+            // Check if email or telephone exists in compte table
+            $client = null;
+            if (!empty($validatedData['email']) || !empty($validatedData['telephone'])) {
+                $query = \App\Models\Compte::query();
+                
+                if (!empty($validatedData['email'])) {
+                    $query->where('email', $validatedData['email']);
+                }
+                
+                if (!empty($validatedData['telephone'])) {
+                    $query->orWhere('telephone', $validatedData['telephone']);
+                }
+                
+                $client = $query->first();
+                
+                // If client exists, update their information if new data is provided
+                if ($client) {
+                    $updateData = [];
+                    
+                    // Only update if new data is provided and different from existing data
+                    if (!empty($validatedData['Name']) && $client->name != $validatedData['Name']) {
+                        $updateData['name'] = $validatedData['Name'];
+                    }
+                    
+                    if (!empty($validatedData['Name']) && $client->prenom != $validatedData['Name']) {
+                        $updateData['prenom'] = $validatedData['Name'];
+                    }
+                    
+                    if (!empty($validatedData['telephone']) && $client->telephone != $validatedData['telephone']) {
+                        $updateData['telephone'] = $validatedData['telephone'];
+                    }
+                    
+                    // Update client if there are changes
+                    if (!empty($updateData)) {
+                        $client->update($updateData);
+                    }
+                }
+                // If client doesn't exist, create a new account
+                else if (!$client && !empty($validatedData['email'])) {
+                    // Generate a random password
+                    $password = \Illuminate\Support\Str::random(10);
+                    
+                    $client = \App\Models\Compte::create([
+                        'name' => $validatedData['Name'] ?? 'Guest',
+                        'prenom' => $validatedData['Name'] ?? 'Guest',
+                        'age' => 20,
+                        'email' => $validatedData['email'],
+                        'password' => \Illuminate\Support\Facades\Hash::make($password),
+                        'telephone' => $validatedData['telephone'] ?? '',
+                        'pfp' => app(\App\Http\Controllers\Api\AuthController::class)->getRandomProfilePicture(),
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    
+                    // Assign user role
+                    $client->assignRole('user');
+                }
+            }
+
+            // Generate a unique reservation number
+            $numRes = 'RES-' . date('Ymd') . '-' . strtoupper(\Illuminate\Support\Str::random(5));
+
             // Create new reservation based on user type
             $reservationData = [
                 'id_terrain' => $validatedData['id_terrain'],
                 'date' => $validatedData['date'],
                 'heure' => $validatedData['heure'],
+                'num_res' => $numRes
             ];
 
             if ($validatedData['type'] === 'admin') {
@@ -174,10 +336,13 @@ class ReservationController extends Controller
                 // If id_client is provided for admin reservation, include it
                 if (isset($validatedData['id_client'])) {
                     $reservationData['id_client'] = $validatedData['id_client'];
+                } else if ($client) {
+                    $reservationData['id_client'] = $client->id_compte;
                 }
             } else {
-                $reservationData['id_client'] = $validatedData['id_client'];
+                $reservationData['id_client'] = $validatedData['id_client'] ?? ($client ? $client->id_compte : null);
                 $reservationData['etat'] = 'en attente';
+                $reservationData['Name'] = $validatedData['Name'] ?? ($client ? $client->name : null);
             }
 
             $reservation = Reservation::create($reservationData);
@@ -201,11 +366,12 @@ class ReservationController extends Controller
         try {
             $validatedData = $request->validate([
                 'id_client' => 'nullable|integer|exists:compte,id_compte',
-                'id_terrain' => 'required|integer|exists:terrain,id_terrain',
-                'date' => 'required|date',
-                'heure' => 'required|date_format:H:i:s',
-                'etat' => 'required|string|in:reserver,en attente',
-                'Name' => 'nullable|string|max:20'
+                'id_terrain' => 'nullable|integer|exists:terrain,id_terrain',
+                'date' => 'nullable|date',
+                'heure' => 'nullable|date_format:H:i:s',
+                'etat' => 'nullable|string|in:reserver,en attente',
+                'Name' => 'nullable|string|max:255',
+                'num_res' => 'nullable|string|max:255'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -218,10 +384,79 @@ class ReservationController extends Controller
         }
 
         try {
+            // If changing date/time/terrain, check for conflicts
+            if (isset($validatedData['date']) || isset($validatedData['heure']) || isset($validatedData['id_terrain'])) {
+                $date = $validatedData['date'] ?? $reservation->date;
+                $heure = $validatedData['heure'] ?? $reservation->heure;
+                $id_terrain = $validatedData['id_terrain'] ?? $reservation->id_terrain;
+                
+                $existingReservation = Reservation::where('id_terrain', $id_terrain)
+                    ->where('date', $date)
+                    ->where('heure', $heure)
+                    ->where('id_reservation', '!=', $id)
+                    ->first();
+                    
+                if ($existingReservation && $existingReservation->etat === 'reserver') {
+                    return response()->json([
+                        'error' => true,
+                        'message' => 'Cet horaire est déjà réservé pour ce terrain.'
+                    ], 409);
+                }
+            }
+            
             $reservation->update($validatedData);
+            
+            // Get updated reservation with related data
+            $updatedReservation = DB::table('reservation')
+                ->select([
+                    'reservation.id_reservation',
+                    'reservation.num_res',
+                    'reservation.id_client',
+                    'reservation.id_terrain',
+                    'terrain.nom_terrain as terrain_nom',
+                    'terrain.type as terrain_type',
+                    'terrain.prix as terrain_prix',
+                    DB::raw('COALESCE(compte.nom, reservation.Name) AS client_nom'),
+                    DB::raw('COALESCE(compte.prenom, "") AS client_prenom'),
+                    DB::raw('COALESCE(compte.telephone, "") AS client_telephone'),
+                    DB::raw('COALESCE(compte.email, "") AS client_email'),
+                    'reservation.date',
+                    'reservation.heure',
+                    'reservation.etat',
+                    'reservation.created_at',
+                    'reservation.updated_at'
+                ])
+                ->leftJoin('compte', 'reservation.id_client', '=', 'compte.id_compte')
+                ->leftJoin('terrain', 'reservation.id_terrain', '=', 'terrain.id_terrain')
+                ->where('reservation.id_reservation', $id)
+                ->first();
+                
+            $result = [
+                'id_reservation' => $updatedReservation->id_reservation,
+                'num_res' => $updatedReservation->num_res,
+                'client' => [
+                    'id_client' => $updatedReservation->id_client,
+                    'nom' => $updatedReservation->client_nom,
+                    'prenom' => $updatedReservation->client_prenom,
+                    'telephone' => $updatedReservation->client_telephone,
+                    'email' => $updatedReservation->client_email,
+                ],
+                'terrain' => [
+                    'id_terrain' => $updatedReservation->id_terrain,
+                    'nom' => $updatedReservation->terrain_nom,
+                    'type' => $updatedReservation->terrain_type,
+                    'prix' => $updatedReservation->terrain_prix,
+                ],
+                'date' => $updatedReservation->date,
+                'heure' => $updatedReservation->heure,
+                'etat' => $updatedReservation->etat,
+                'created_at' => $updatedReservation->created_at,
+                'updated_at' => $updatedReservation->updated_at
+            ];
+            
             return response()->json([
                 'message' => 'Reservation updated successfully',
-                'data' => new ReservationResource($reservation)
+                'data' => $result
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -309,9 +544,58 @@ class ReservationController extends Controller
 
         try {
             $reservation->update($validatedData);
+            
+            // Get updated reservation with related data
+            $updatedReservation = DB::table('reservation')
+                ->select([
+                    'reservation.id_reservation',
+                    'reservation.num_res',
+                    'reservation.id_client',
+                    'reservation.id_terrain',
+                    'terrain.nom_terrain as terrain_nom',
+                    'terrain.type as terrain_type',
+                    'terrain.prix as terrain_prix',
+                    DB::raw('COALESCE(compte.nom, reservation.Name) AS client_nom'),
+                    DB::raw('COALESCE(compte.prenom, "") AS client_prenom'),
+                    DB::raw('COALESCE(compte.telephone, "") AS client_telephone'),
+                    DB::raw('COALESCE(compte.email, "") AS client_email'),
+                    'reservation.date',
+                    'reservation.heure',
+                    'reservation.etat',
+                    'reservation.created_at',
+                    'reservation.updated_at'
+                ])
+                ->leftJoin('compte', 'reservation.id_client', '=', 'compte.id_compte')
+                ->leftJoin('terrain', 'reservation.id_terrain', '=', 'terrain.id_terrain')
+                ->where('reservation.id_reservation', $id)
+                ->first();
+                
+            $result = [
+                'id_reservation' => $updatedReservation->id_reservation,
+                'num_res' => $updatedReservation->num_res,
+                'client' => [
+                    'id_client' => $updatedReservation->id_client,
+                    'nom' => $updatedReservation->client_nom,
+                    'prenom' => $updatedReservation->client_prenom,
+                    'telephone' => $updatedReservation->client_telephone,
+                    'email' => $updatedReservation->client_email,
+                ],
+                'terrain' => [
+                    'id_terrain' => $updatedReservation->id_terrain,
+                    'nom' => $updatedReservation->terrain_nom,
+                    'type' => $updatedReservation->terrain_type,
+                    'prix' => $updatedReservation->terrain_prix,
+                ],
+                'date' => $updatedReservation->date,
+                'heure' => $updatedReservation->heure,
+                'etat' => $updatedReservation->etat,
+                'created_at' => $updatedReservation->created_at,
+                'updated_at' => $updatedReservation->updated_at
+            ];
+            
             return response()->json([
                 'message' => 'Reservation status updated successfully',
-                'data' => new ReservationResource($reservation)
+                'data' => $result
             ]);
         } catch (\Exception $e) {
             return response()->json([

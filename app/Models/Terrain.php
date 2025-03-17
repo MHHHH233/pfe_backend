@@ -8,12 +8,14 @@ class Terrain extends Model
 {
     protected $table = 'terrain';
     protected $primaryKey = 'id_terrain';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'nom_terrain',
         'capacite',
-        'type'
+        'type',
+        'prix',
+        'image_path'
     ];
 
     protected $casts = [

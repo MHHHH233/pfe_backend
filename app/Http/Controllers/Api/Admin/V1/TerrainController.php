@@ -8,15 +8,27 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use App\Http\Resources\Admin\V1\TerrainResource;
+use Illuminate\Support\Facades\File;
 
 class TerrainController extends Controller
 {
+    private $imageFolder = 'images/terrains';
+
+    public function __construct()
+    {
+        // Create the images/terrains directory if it doesn't exist
+        $path = public_path($this->imageFolder);
+        if (!File::exists($path)) {
+            File::makeDirectory($path, 0777, true);
+        }
+    }
+
     public function index(Request $request)
     {
         try {
             $request->validate([
                 'paginationSize' => 'nullable|integer|min:1',
-                'sort_by' => 'nullable|string|in:nom_terrain,capacite,type',
+                'sort_by' => 'nullable|string|in:nom_terrain,capacite,type,prix',
                 'sort_order' => 'nullable|string|in:asc,desc',
                 'search' => 'nullable|string',
                 'type' => 'nullable|string|in:indoor,outdoor',
@@ -55,19 +67,32 @@ class TerrainController extends Controller
             $validatedData = $request->validate([
                 'nom_terrain' => 'required|string|max:100',
                 'capacite' => 'required|string|in:5v5,6v6,7v7',
-                'type' => 'required|string|in:indoor,outdoor'
+                'type' => 'required|string|in:indoor,outdoor',
+                'prix' => 'required|numeric|min:0',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
         try {
+            if ($request->hasFile('image')) {
+                $image = $request->file('image');
+                $imageName = time() . '_' . $image->getClientOriginalName();
+                $image->move(public_path($this->imageFolder), $imageName);
+                $validatedData['image_path'] = $this->imageFolder . '/' . $imageName;
+            }
+
             $terrain = Terrain::create($validatedData);
             return response()->json([
                 'message' => 'Terrain created successfully',
                 'data' => new TerrainResource($terrain)
             ], 201);
         } catch (\Exception $e) {
+            // Clean up uploaded file if creation fails
+            if (isset($imageName) && File::exists(public_path($this->imageFolder . '/' . $imageName))) {
+                File::delete(public_path($this->imageFolder . '/' . $imageName));
+            }
             return response()->json([
                 'message' => 'Failed to create Terrain',
                 'error' => $e->getMessage()
@@ -81,7 +106,9 @@ class TerrainController extends Controller
             $validatedData = $request->validate([
                 'nom_terrain' => 'required|string|max:100',
                 'capacite' => 'required|string|in:5v5,6v6,7v7',
-                'type' => 'required|string|in:indoor,outdoor'
+                'type' => 'required|string|in:indoor,outdoor',
+                'prix' => 'required|numeric|min:0',
+                'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -94,12 +121,29 @@ class TerrainController extends Controller
         }
 
         try {
+            if ($request->hasFile('image')) {
+                // Delete old image if it exists
+                if ($terrain->image_path && File::exists(public_path($terrain->image_path))) {
+                    File::delete(public_path($terrain->image_path));
+                }
+
+                // Store new image
+                $image = $request->file('image');
+                $imageName = time() . '_' . $image->getClientOriginalName();
+                $image->move(public_path($this->imageFolder), $imageName);
+                $validatedData['image_path'] = $this->imageFolder . '/' . $imageName;
+            }
+
             $terrain->update($validatedData);
             return response()->json([
                 'message' => 'Terrain updated successfully',
                 'data' => new TerrainResource($terrain)
             ]);
         } catch (\Exception $e) {
+            // Clean up uploaded file if update fails
+            if (isset($imageName) && File::exists(public_path($this->imageFolder . '/' . $imageName))) {
+                File::delete(public_path($this->imageFolder . '/' . $imageName));
+            }
             return response()->json([
                 'message' => 'Failed to update Terrain',
                 'error' => $e->getMessage()
@@ -116,6 +160,11 @@ class TerrainController extends Controller
         }
 
         try {
+            // Delete associated image if it exists
+            if ($terrain->image_path && File::exists(public_path($terrain->image_path))) {
+                File::delete(public_path($terrain->image_path));
+            }
+
             $terrain->delete();
             return response()->json([
                 'message' => 'Terrain deleted successfully'
@@ -152,7 +201,7 @@ class TerrainController extends Controller
         $sortBy = $request->input('sort_by', 'id_terrain');
         $sortOrder = $request->input('sort_order', 'desc');
 
-        $allowedSortBy = ['nom_terrain', 'capacite', 'type'];
+        $allowedSortBy = ['nom_terrain', 'capacite', 'type', 'prix'];
         $allowedSortOrder = ['asc', 'desc'];
 
         if (in_array($sortBy, $allowedSortBy) && in_array($sortOrder, $allowedSortOrder)) {

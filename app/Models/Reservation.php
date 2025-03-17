@@ -16,7 +16,8 @@ class Reservation extends Model
         'date',
         'heure',
         'etat',
-        'Name'
+        'Name',
+        'num_res'
     ];
 
     protected $casts = [
