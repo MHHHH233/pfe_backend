@@ -103,51 +103,39 @@ class TerrainController extends Controller
     public function update(Request $request, $id): JsonResponse
     {
         try {
+            // Log the incoming request data for debugging
+            \Log::info('Update request data:', $request->all());
+            
             $validatedData = $request->validate([
                 'nom_terrain' => 'required|string|max:100',
                 'capacite' => 'required|string|in:5v5,6v6,7v7',
                 'type' => 'required|string|in:indoor,outdoor',
                 'prix' => 'required|numeric|min:0',
-                'image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+                // Remove image validation since we're not handling file uploads in JSON
             ]);
+
+            $terrain = Terrain::find($id);
+
+            if (!$terrain) {
+                return response()->json(['message' => 'Terrain not found'], 404);
+            }
+
+            try {
+                // Update the terrain with validated data
+                $terrain->update($validatedData);
+                return response()->json([
+                    'message' => 'Terrain updated successfully',
+                    'data' => new TerrainResource($terrain)
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Failed to update Terrain',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
         } catch (ValidationException $e) {
+            \Log::error('Validation error:', $e->errors());
             return response()->json(['error' => $e->errors()], 400);
-        }
-
-        $terrain = Terrain::find($id);
-
-        if (!$terrain) {
-            return response()->json(['message' => 'Terrain not found'], 404);
-        }
-
-        try {
-            if ($request->hasFile('image')) {
-                // Delete old image if it exists
-                if ($terrain->image_path && File::exists(public_path($terrain->image_path))) {
-                    File::delete(public_path($terrain->image_path));
-                }
-
-                // Store new image
-                $image = $request->file('image');
-                $imageName = time() . '_' . $image->getClientOriginalName();
-                $image->move(public_path($this->imageFolder), $imageName);
-                $validatedData['image_path'] = $this->imageFolder . '/' . $imageName;
-            }
-
-            $terrain->update($validatedData);
-            return response()->json([
-                'message' => 'Terrain updated successfully',
-                'data' => new TerrainResource($terrain)
-            ]);
-        } catch (\Exception $e) {
-            // Clean up uploaded file if update fails
-            if (isset($imageName) && File::exists(public_path($this->imageFolder . '/' . $imageName))) {
-                File::delete(public_path($this->imageFolder . '/' . $imageName));
-            }
-            return response()->json([
-                'message' => 'Failed to update Terrain',
-                'error' => $e->getMessage()
-            ], 500);
         }
     }
 
