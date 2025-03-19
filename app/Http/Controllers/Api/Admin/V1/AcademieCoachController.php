@@ -8,9 +8,21 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use App\Http\Resources\Admin\V1\AcademieCoachResource;
+use Illuminate\Support\Facades\File;
 
 class AcademieCoachController extends Controller
 {
+    private $imageFolder = 'images/coach';
+
+    public function __construct()
+    {
+        // Create the images/coach directory if it doesn't exist
+        $path = public_path($this->imageFolder);
+        if (!File::exists($path)) {
+            File::makeDirectory($path, 0777, true);
+        }
+    }
+
     public function index(Request $request)
     {
         try {
@@ -99,7 +111,7 @@ class AcademieCoachController extends Controller
             $validatedData = $request->validate([
                 'id_academie' => 'required|integer|exists:academie,id_academie',
                 'nom' => 'required|string|max:20',
-                'pfp' => 'nullable|string',
+                'pfp' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
                 'description' => 'nullable|string',
                 'instagram' => 'nullable|string'
             ]);
@@ -108,12 +120,23 @@ class AcademieCoachController extends Controller
         }
 
         try {
+            if ($request->hasFile('pfp')) {
+                $image = $request->file('pfp');
+                $imageName = time() . '_' . $image->getClientOriginalName();
+                $image->move(public_path($this->imageFolder), $imageName);
+                $validatedData['pfp'] = $this->imageFolder . '/' . $imageName;
+            }
+
             $coach = AcademieCoach::create($validatedData);
             return response()->json([
                 'message' => 'Coach created successfully',
                 'data' => new AcademieCoachResource($coach)
             ], 201);
         } catch (\Exception $e) {
+            // Clean up uploaded file if creation fails
+            if (isset($imageName) && File::exists(public_path($this->imageFolder . '/' . $imageName))) {
+                File::delete(public_path($this->imageFolder . '/' . $imageName));
+            }
             return response()->json([
                 'message' => 'Failed to create Coach',
                 'error' => $e->getMessage()
@@ -127,7 +150,7 @@ class AcademieCoachController extends Controller
             $validatedData = $request->validate([
                 'id_academie' => 'required|integer|exists:academie,id_academie',
                 'nom' => 'required|string|max:20',
-                'pfp' => 'nullable|string',
+                'pfp' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
                 'description' => 'nullable|string',
                 'instagram' => 'nullable|string'
             ]);
@@ -142,6 +165,18 @@ class AcademieCoachController extends Controller
         }
 
         try {
+            if ($request->hasFile('pfp')) {
+                // Delete old image if it exists
+                if ($coach->pfp && File::exists(public_path($coach->pfp))) {
+                    File::delete(public_path($coach->pfp));
+                }
+
+                $image = $request->file('pfp');
+                $imageName = time() . '_' . $image->getClientOriginalName();
+                $image->move(public_path($this->imageFolder), $imageName);
+                $validatedData['pfp'] = $this->imageFolder . '/' . $imageName;
+            }
+
             $coach->update($validatedData);
             return response()->json([
                 'message' => 'Coach updated successfully',
@@ -164,6 +199,11 @@ class AcademieCoachController extends Controller
         }
 
         try {
+            // Delete associated image if it exists
+            if ($coach->pfp && File::exists(public_path($coach->pfp))) {
+                File::delete(public_path($coach->pfp));
+            }
+
             $coach->delete();
             return response()->json([
                 'message' => 'Coach deleted successfully'
@@ -206,4 +246,4 @@ class AcademieCoachController extends Controller
             $query->orderBy('id_coach', 'desc');
         }
     }
-} 
+}

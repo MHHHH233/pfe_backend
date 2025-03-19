@@ -95,8 +95,8 @@ class ActivitesMembersController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'id_activite' => 'required|integer|exists:academie_activites,id_activites',
-                'id_member' => 'required|integer|exists:compte,id_compte',
+                'id_activites' => 'required|integer|exists:academie_activites,id_activites',
+                'id_compte' => 'required|integer|exists:compte,id_compte',
                 'date_joined' => 'required|date'
             ]);
         } catch (ValidationException $e) {
@@ -121,8 +121,8 @@ class ActivitesMembersController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'id_activite' => 'required|integer|exists:academie_activites,id_activites',
-                'id_member' => 'required|integer|exists:compte,id_compte',
+                'id_activites' => 'required|integer|exists:academie_activites,id_activites',
+                'id_compte' => 'required|integer|exists:compte,id_compte',
                 'date_joined' => 'required|date'
             ]);
         } catch (ValidationException $e) {
@@ -173,7 +173,7 @@ class ActivitesMembersController extends Controller
     protected function applyFilters(Request $request, $query)
     {
         if ($request->has('id_activite')) {
-            $query->where('id_activite', $request->input('id_activite'));
+            $query->where('id_activites', $request->input('id_activite'));
         }
     }
 
@@ -191,4 +191,4 @@ class ActivitesMembersController extends Controller
             $query->orderBy('date_joined', 'desc');
         }
     }
-} 
+}

@@ -8,7 +8,7 @@ class AcademieCoach extends Model
 {
     protected $table = 'academie_coach';
     protected $primaryKey = 'id_coach';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'id_academie',

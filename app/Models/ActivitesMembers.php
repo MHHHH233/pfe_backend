@@ -8,11 +8,12 @@ class ActivitesMembers extends Model
 {
     protected $table = 'activites_members';
     protected $primaryKey = 'id_member';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'id_compte',
-        'id_activites'
+        'id_activites',
+        'date_joined'
     ];
 
     public function compte()
@@ -24,4 +25,4 @@ class ActivitesMembers extends Model
     {
         return $this->belongsTo(AcademieActivites::class, 'id_activites');
     }
-} 
+}

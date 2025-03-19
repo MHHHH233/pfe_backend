@@ -11,6 +11,7 @@ class CreateActivitesMembersTable extends Migration
             $table->increments('id_member');
             $table->unsignedInteger('id_compte')->nullable();
             $table->unsignedInteger('id_activites')->nullable();
+            $table->timestamp('date_joined')->nullable();
             $table->timestamps();
 
             $table->foreign('id_compte')

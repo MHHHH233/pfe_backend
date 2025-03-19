@@ -42,8 +42,9 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::apiResource('teams', TeamsController::class);
         
         // Add routes for each controller
-        Route::apiResource('academie-activites', AcademieActivitesController::class);
+        
         Route::apiResource('academie', AcademieController::class);
+        Route::apiResource('academie-activites', AcademieActivitesController::class);
         Route::apiResource('academie-coaches', AcademieCoachController::class);
         Route::apiResource('academie-programmes', AcademieProgrammeController::class);
         Route::apiResource('activites-members', ActivitesMembersController::class);

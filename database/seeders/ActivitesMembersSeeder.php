@@ -12,15 +12,17 @@ class ActivitesMembersSeeder extends Seeder
             [
                 'id_compte' => 1,
                 'id_activites' => 1,
+                'date_joined' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
                 'id_compte' => 2,
                 'id_activites' => 1,
+                'date_joined' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
         ]);
     }
-} 
+}
