@@ -8,7 +8,7 @@ class TournoiTeams extends Model
 {
     protected $table = 'tournoi_teams';
     protected $primaryKey = 'id_teams';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'id_tournoi',

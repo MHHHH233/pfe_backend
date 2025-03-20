@@ -8,7 +8,7 @@ class Matches extends Model
 {
     protected $table = 'matches';
     protected $primaryKey = 'id_match';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'id_tournoi',
