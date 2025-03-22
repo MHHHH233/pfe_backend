@@ -97,7 +97,12 @@ class PlayersController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'id_compte' => 'required|integer|exists:compte,id_compte',
+                'id_compte' => [
+                    'required',
+                    'integer',
+                    'exists:compte,id_compte',
+                    'unique:players,id_compte',
+                ],
                 'position' => 'required|string|max:50',
                 'total_matches' => 'nullable|integer',
                 'rating' => 'nullable|integer',
@@ -108,21 +113,28 @@ class PlayersController extends Controller
                 'invites_refused' => 'nullable|integer',
                 'total_invites' => 'nullable|integer'
             ]);
-        } catch (ValidationException $e) {
-            return response()->json(['error' => $e->errors()], 400);
-        }
 
-        try {
-            $player = Players::create($validatedData);
-            return response()->json([
-                'message' => 'Player created successfully',
-                'data' => new PlayersResource($player)
-            ], 201);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Failed to create Player',
-                'error' => $e->getMessage()
-            ], 500);
+            try {
+                $player = Players::create($validatedData);
+                return response()->json([
+                    'message' => 'Player created successfully',
+                    'data' => new PlayersResource($player)
+                ], 201);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Failed to create Player',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        } catch (ValidationException $e) {
+            $errors = $e->errors();
+            if (isset($errors['id_compte']) && str_contains(implode(' ', $errors['id_compte']), 'taken')) {
+                return response()->json([
+                    'error' => 'A player with this account already exists.',
+                    'details' => $errors
+                ], 422);
+            }
+            return response()->json(['error' => $errors], 400);
         }
     }
 

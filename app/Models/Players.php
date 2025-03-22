@@ -8,7 +8,7 @@ class Players extends Model
 {
     protected $table = 'players';
     protected $primaryKey = 'id_player';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'id_compte',

@@ -142,7 +142,9 @@ class CompteController extends Controller
             ]);
 
             $user->update($validatedData);
-
+            if (!isset($validatedData['pfp'])) {
+                $user->pfp = $this->getRandomProfilePicture();
+            }
             if (isset($validatedData['role'])) {
                 $user->syncRoles([$validatedData['role']]);
             }

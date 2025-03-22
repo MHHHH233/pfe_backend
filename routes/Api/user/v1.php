@@ -1,4 +1,3 @@
-
 <?php
 
 use Illuminate\Support\Facades\Route;
@@ -21,6 +20,7 @@ use App\Http\Controllers\Api\User\V1\AcademieProgrammeController;
 use App\Http\Controllers\Api\User\V1\ActivitesMembersController;
 use App\Http\Controllers\Api\User\V1\AnalyticsController;
 use App\Http\Controllers\Api\User\V1\AcademieController;
+use App\Http\Controllers\Api\User\V1\ReviewsController;
 
 Route::prefix('user')->as('user.')->group(function () {
     Route::prefix('v1')->as('v1.')->group(function () {
@@ -66,6 +66,7 @@ Route::prefix('user')->as('user.')->group(function () {
         Route::post('tournoi-teams/withdraw', [TournoiTeamsController::class],'withdraw');        
         Route::post('tournoi-teams/register', [TournoiTeamsController::class],'register');        
         
+        Route::apiResource('reviews', ReviewsController::class)->only(['store', 'destroy']);
                 
     });
 });

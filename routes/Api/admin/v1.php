@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\Admin\V1\AcademieProgrammeController;
 use App\Http\Controllers\Api\Admin\V1\ActivitesMembersController;
 use App\Http\Controllers\Api\Admin\V1\AnalyticsController;
 use App\Http\Controllers\Api\Admin\V1\AcademieController;
+use App\Http\Controllers\Api\Admin\V1\ReviewsController;
+use App\Http\Resources\Admin\V1\PlayerRequestResource;
 
 Route::prefix('admin')->as('admin.')->group(function () {
     Route::prefix('v1')->as('v1.')->group(function () {
@@ -34,8 +36,14 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::apiResource('tournois', TournoiController::class);
         Route::apiResource('terrains', TerrainController::class);
         Route::apiResource('reported-bugs', ReportedBugController::class);
+        Route::patch('reported-bugs/{id}/status', [ReportedBugController::class, 'updateStatus']);
+        Route::apiResource('reviews', ReviewsController::class);
+        Route::patch('reviews/{id}/status', [ReviewsController::class, 'updateStatus']);
         Route::apiResource('ratings', RatingController::class);
         Route::apiResource('player-requests', PlayerRequestController::class);
+        Route::patch('player-requests/{id}/status', [PlayerRequestController::class, 'updateStatus']);
+        Route::patch('player-requests/{id}/reject', [PlayerRequestController::class, 'reject']);
+        Route::patch('player-requests/{id}/accept', [PlayerRequestController::class, 'accept']);
         Route::apiResource('matches', MatchesController::class);
         Route::apiResource('players', PlayersController::class);
         Route::apiResource('stages', StagesController::class);

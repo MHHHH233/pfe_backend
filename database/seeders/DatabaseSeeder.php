@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
             TournoiTeamsSeeder::class,   
             PlayerRequestSeeder::class,   // This should come after PlayersSeeder
             MatchesSeeder::class,        // Added Matches seeder
+            ReportedBugSeeder::class,
         ]);
     }
 }

@@ -8,7 +8,7 @@ class Rating extends Model
 {
     protected $table = 'rating';
     protected $primaryKey = 'id_rating';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'id_rating_player',

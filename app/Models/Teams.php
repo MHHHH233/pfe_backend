@@ -8,7 +8,7 @@ class Teams extends Model
 {
     protected $table = 'teams';
     protected $primaryKey = 'id_teams';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'capitain',

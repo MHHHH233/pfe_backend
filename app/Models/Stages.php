@@ -8,7 +8,7 @@ class Stages extends Model
 {
     protected $table = 'stages';
     protected $primaryKey = 'id_stage';
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
         'stage_name'

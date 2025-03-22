@@ -3,13 +3,13 @@
 namespace App\Http\Controllers\Api\Admin\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\ReportedBug;
+use App\Models\Reviews;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
-use App\Http\Resources\Admin\V1\ReportedBugResource;
+use App\Http\Resources\Admin\V1\ReviewsResource;
 
-class ReportedBugController extends Controller
+class ReviewsController extends Controller
 {
     public function index(Request $request)
     {
@@ -29,16 +29,16 @@ class ReportedBugController extends Controller
                     },
                 ],
                 'paginationSize' => 'nullable|integer|min:1',
-                'sort_by' => 'nullable|string|in:id_bug,description,created_at,status',
+                'sort_by' => 'nullable|string|in:id_review,name,created_at,status',
                 'sort_order' => 'nullable|string|in:asc,desc',
                 'search' => 'nullable|string',
-                'status' => 'nullable|string|in:pending,in_progress,resolved,rejected'
+                'status' => 'nullable|string|in:pending,approved,rejected'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
-        $query = ReportedBug::query();
+        $query = Reviews::query();
 
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
@@ -50,9 +50,9 @@ class ReportedBugController extends Controller
         $this->applySorting($request, $query);
 
         $paginationSize = $request->input('paginationSize', 10);
-        $bugs = $query->paginate($paginationSize);
+        $reviews = $query->paginate($paginationSize);
 
-        return ReportedBugResource::collection($bugs);
+        return ReviewsResource::collection($reviews);
     }
 
     public function show($id, Request $request)
@@ -77,20 +77,20 @@ class ReportedBugController extends Controller
             return response()->json(['error' => $e->errors()], 400);
         }
 
-        $query = ReportedBug::query();
+        $query = Reviews::query();
 
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
             $query->with($includes);
         }
 
-        $bug = $query->find($id);
+        $review = $query->find($id);
 
-        if (!$bug) {
-            return response()->json(['message' => 'Bug report not found'], 404);
+        if (!$review) {
+            return response()->json(['message' => 'Review not found'], 404);
         }
 
-        return new ReportedBugResource($bug);
+        return new ReviewsResource($review);
     }
 
     public function store(Request $request): JsonResponse
@@ -98,22 +98,23 @@ class ReportedBugController extends Controller
         try {
             $validatedData = $request->validate([
                 'id_compte' => 'required|integer|exists:compte,id_compte',
+                'name' => 'required|string',
                 'description' => 'required|string',
-                'status' => 'required|string|in:pending,in_progress,resolved,rejected'
+                'status' => 'required|string|in:pending,approved,rejected'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
         try {
-            $bug = ReportedBug::create($validatedData);
+            $review = Reviews::create($validatedData);
             return response()->json([
-                'message' => 'Bug report created successfully',
-                'data' => new ReportedBugResource($bug)
+                'message' => 'Review created successfully',
+                'data' => new ReviewsResource($review)
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to create Bug report',
+                'message' => 'Failed to create Review',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -124,27 +125,28 @@ class ReportedBugController extends Controller
         try {
             $validatedData = $request->validate([
                 'id_compte' => 'required|integer|exists:compte,id_compte',
+                'name' => 'required|string',
                 'description' => 'required|string'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
-        $bug = ReportedBug::find($id);
+        $review = Reviews::find($id);
 
-        if (!$bug) {
-            return response()->json(['message' => 'Bug report not found'], 404);
+        if (!$review) {
+            return response()->json(['message' => 'Review not found'], 404);
         }
 
         try {
-            $bug->update($validatedData);
+            $review->update($validatedData);
             return response()->json([
-                'message' => 'Bug report updated successfully',
-                'data' => new ReportedBugResource($bug)
+                'message' => 'Review updated successfully',
+                'data' => new ReviewsResource($review)
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to update Bug report',
+                'message' => 'Failed to update Review',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -152,20 +154,20 @@ class ReportedBugController extends Controller
 
     public function destroy($id): JsonResponse
     {
-        $bug = ReportedBug::find($id);
+        $review = Reviews::find($id);
 
-        if (!$bug) {
-            return response()->json(['message' => 'Bug report not found'], 404);
+        if (!$review) {
+            return response()->json(['message' => 'Review not found'], 404);
         }
 
         try {
-            $bug->delete();
+            $review->delete();
             return response()->json([
-                'message' => 'Bug report deleted successfully'
+                'message' => 'Review deleted successfully'
             ], 204);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to delete Bug report',
+                'message' => 'Failed to delete Review',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -176,7 +178,8 @@ class ReportedBugController extends Controller
         if ($request->has('search') && !empty($request->input('search'))) {
             $search = $request->input('search');
             $query->where(function($q) use ($search) {
-                $q->where('description', 'like', "%$search%");
+                $q->where('name', 'like', "%$search%")
+                  ->orWhere('description', 'like', "%$search%");
             });
         }
     }
@@ -190,16 +193,16 @@ class ReportedBugController extends Controller
 
     protected function applySorting(Request $request, $query)
     {
-        $sortBy = $request->input('sort_by', 'id_bug');
+        $sortBy = $request->input('sort_by', 'id_review');
         $sortOrder = $request->input('sort_order', 'desc');
 
-        $allowedSortBy = ['id_bug', 'description', 'created_at', 'status'];
+        $allowedSortBy = ['id_review', 'name', 'created_at', 'status'];
         $allowedSortOrder = ['asc', 'desc'];
 
         if (in_array($sortBy, $allowedSortBy) && in_array($sortOrder, $allowedSortOrder)) {
             $query->orderBy($sortBy, $sortOrder);
         } else {
-            $query->orderBy('id_bug', 'desc');
+            $query->orderBy('id_review', 'desc');
         }
     }
 
@@ -208,31 +211,30 @@ class ReportedBugController extends Controller
         try {
             $validatedData = $request->validate([
                 'status' => 'required|string|in:' . implode(',', [
-                    ReportedBug::STATUS_PENDING,
-                    ReportedBug::STATUS_IN_PROGRESS,
-                    ReportedBug::STATUS_RESOLVED,
-                    ReportedBug::STATUS_REJECTED
+                    Reviews::STATUS_PENDING,
+                    Reviews::STATUS_APPROVED,
+                    Reviews::STATUS_REJECTED
                 ])
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
-        $bug = ReportedBug::find($id);
+        $review = Reviews::find($id);
 
-        if (!$bug) {
-            return response()->json(['message' => 'Bug report not found'], 404);
+        if (!$review) {
+            return response()->json(['message' => 'Review not found'], 404);
         }
 
         try {
-            $bug->update(['status' => $validatedData['status']]);
+            $review->update(['status' => $validatedData['status']]);
             return response()->json([
-                'message' => 'Bug report status updated successfully',
-                'data' => new ReportedBugResource($bug)
+                'message' => 'Review status updated successfully',
+                'data' => new ReviewsResource($review)
             ]);
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Failed to update Bug report status',
+                'message' => 'Failed to update Review status',
                 'error' => $e->getMessage()
             ], 500);
         }
