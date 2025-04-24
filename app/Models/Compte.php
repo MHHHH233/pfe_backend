@@ -36,4 +36,28 @@ class Compte extends Authenticatable
     {
         return $this->hasMany(Reservation::class, 'id_client');
     }
-} 
+
+    public function playerSentRequests()
+    {
+        return $this->hasManyThrough(
+            PlayerRequest::class,
+            Players::class,
+            'id_compte', // Foreign key on players table
+            'sender',    // Foreign key on player_request table
+            'id_compte', // Local key on compte table
+            'id_player'  // Local key on players table
+        );
+    }
+
+    public function playerReceivedRequests()
+    {
+        return $this->hasManyThrough(
+            PlayerRequest::class,
+            Players::class,
+            'id_compte', // Foreign key on players table
+            'receiver',  // Foreign key on player_request table
+            'id_compte', // Local key on compte table
+            'id_player'  // Local key on players table
+        );
+    }
+}

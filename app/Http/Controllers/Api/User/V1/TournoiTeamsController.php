@@ -65,31 +65,33 @@ class TournoiTeamsController extends Controller
         try {
             $validatedData = $request->validate([
                 'id_tournoi' => 'required|integer|exists:tournoi,id_tournoi',
-                'id_teams' => 'required|integer|exists:teams,id_teams',
+                'team_name' => 'required|string|max:255',
+                'descrption' => 'nullable|string',
+                'capitain' => 'required|integer|exists:compte,id_compte',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
         try {
-            // Check if team is already registered
+            // Check if team with same name is already registered in this tournament
             $exists = TournoiTeams::where('id_tournoi', $validatedData['id_tournoi'])
-                ->where('id_teams', $validatedData['id_teams'])
+                ->where('team_name', $validatedData['team_name'])
                 ->exists();
 
             if ($exists) {
                 return response()->json([
                     'error' => true,
-                    'message' => 'Team is already registered for this tournament'
+                    'message' => 'A team with this name is already registered for this tournament'
                 ], 409);
             }
 
+            // Create the team entry in tournoi_teams table
             $tournoiTeam = TournoiTeams::create([
                 'id_tournoi' => $validatedData['id_tournoi'],
-                'id_teams' => $validatedData['id_teams'],
-                'points' => 0,
-                'goals_scored' => 0,
-                'goals_conceded' => 0
+                'team_name' => $validatedData['team_name'],
+                'descrption' => $validatedData['descrption'],
+                'capitain' => $validatedData['capitain'],
             ]);
 
             return response()->json([
@@ -199,4 +201,29 @@ class TournoiTeamsController extends Controller
                   ->orderBy('goals_scored', 'desc');
         }
     }
-} 
+
+    /**
+     * Get tournaments registered by the authenticated user.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getUserRegisteredTournaments(): JsonResponse
+    {
+        try {
+            $userId = auth()->id();
+
+            // Get tournaments where the user is a captain
+            $registeredTournaments = TournoiTeams::where('capitain', $userId)->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => TournoiTeamsResource::collection($registeredTournaments)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to fetch user registered tournaments',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+}

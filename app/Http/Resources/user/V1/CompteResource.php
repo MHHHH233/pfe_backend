@@ -14,6 +14,19 @@ class CompteResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return parent::toArray($request);
+        $data = parent::toArray($request);
+
+        // Add player requests data if the player relationship is loaded
+        if ($this->relationLoaded('player')) {
+            if ($this->player && $this->player->relationLoaded('sentRequests')) {
+                $data['player']['sentRequests'] = $this->player->sentRequests;
+            }
+
+            if ($this->player && $this->player->relationLoaded('receivedRequests')) {
+                $data['player']['receivedRequests'] = $this->player->receivedRequests;
+            }
+        }
+
+        return $data;
     }
 }

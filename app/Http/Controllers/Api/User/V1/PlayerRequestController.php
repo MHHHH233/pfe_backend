@@ -5,6 +5,8 @@ namespace App\Http\Controllers\api\user\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\PlayerRequest;
+use App\Models\Teams;
+use App\Models\Players;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -99,13 +101,50 @@ class PlayerRequestController extends Controller
         try {
             $validatedData = $request->validate([
                 'sender' => 'required|integer|exists:players,id_player',
-                'receiver' => 'required|integer|exists:players,id_player',
+                'receiver' => 'required|integer',
                 'match_date' => 'required|date',
                 'starting_time' => 'required|date_format:H:i:s',
-                'message' => 'nullable|string|max:50'
+                'message' => 'nullable|string|max:50',
+                'type' => 'nullable|string|in:PLAYER_REQUEST,TEAM_REQUEST'
             ]);
+
+            // If this is a team request, we need to make sure receiver is valid team ID
+            // and then find its captain to set as the actual receiver
+            if (isset($validatedData['type']) && $validatedData['type'] === 'TEAM_REQUEST') {
+                $team = Teams::find($validatedData['receiver']);
+
+                if (!$team) {
+                    return response()->json([
+                        'error' => [
+                            'receiver' => ['The selected team does not exist.']
+                        ]
+                    ], 422);
+                }
+
+                if (!$team->capitain) {
+                    return response()->json([
+                        'error' => [
+                            'receiver' => ['The selected team does not have a captain.']
+                        ]
+                    ], 422);
+                }
+
+                // Set the receiver to be the team captain
+                $validatedData['receiver'] = $team->capitain;
+            } else {
+                // For regular player requests, make sure the receiver exists
+                $receiverExists = Players::where('id_player', $validatedData['receiver'])->exists();
+
+                if (!$receiverExists) {
+                    return response()->json([
+                        'error' => [
+                            'receiver' => ['The selected receiver player does not exist.']
+                        ]
+                    ], 422);
+                }
+            }
         } catch (ValidationException $e) {
-            return response()->json(['error' => $e->errors()], 400);
+            return response()->json(['error' => $e->errors()], 422);
         }
 
         try {
@@ -174,4 +213,4 @@ class PlayerRequestController extends Controller
                   ->orderBy('starting_time', 'desc');
         }
     }
-} 
+}

@@ -9,6 +9,9 @@ class CreateTeamsTable extends Migration
     {
         Schema::create('teams', function (Blueprint $table) {
             $table->increments('id_teams');
+            $table->string('team_name', 100)->unique();
+            $table->text('description')->nullable();
+            $table->string('logo')->nullable();
             $table->unsignedInteger('capitain')->nullable();
             $table->integer('total_matches')->nullable();
             $table->integer('rating')->nullable();

@@ -4,9 +4,13 @@ namespace App\Http\Controllers\Api\User\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Teams;
+use App\Models\TeamMembers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use App\Http\Resources\User\V1\TeamsResource;
 
 class TeamsController extends Controller
@@ -72,30 +76,53 @@ class TeamsController extends Controller
     public function store(Request $request): JsonResponse
     {
         try {
-            $validatedData = $request->validate([
+            $request->validate([
                 'team_name' => 'required|string|max:100|unique:teams,team_name',
-                'description' => 'nullable|string',
-                'logo' => 'nullable|file|image|mimes:jpeg,png,jpg|max:2048'
+                'description' => 'nullable|string|max:500',
+                'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
-        } catch (ValidationException $e) {
-            return response()->json(['error' => $e->errors()], 400);
-        }
 
-        try {
-            $validatedData['id_captain'] = $request->user()->id_player;
-            $validatedData['rating'] = 0;
-            $validatedData['total_matches'] = 0;
+            DB::beginTransaction();
 
-            $team = Teams::create($validatedData);
+            $team = new Teams();
+            $team->team_name = $request->team_name;
+            $team->description = $request->description;
+
+            // Handle logo upload if provided
+            if ($request->hasFile('logo')) {
+                $logo = $request->file('logo');
+                $filename = 'team_' . time() . '.' . $logo->getClientOriginalExtension();
+                $path = $logo->storeAs('public/team_logos', $filename);
+                $team->logo = Storage::url($path);
+            }
+
+            $team->save();
+
+            // Add the authenticated user as team captain
+            $teamMember = new TeamMembers();
+            $teamMember->id_teams = $team->id_teams;
+            $teamMember->id_users = Auth::id();
+            $teamMember->is_captain = true;
+            $teamMember->save();
+
+            DB::commit();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Team created successfully',
                 'data' => new TeamsResource($team)
             ], 201);
-
-        } catch (\Exception $e) {
+        } catch (ValidationException $e) {
+            DB::rollBack();
             return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
                 'message' => 'Failed to create team',
                 'error' => $e->getMessage()
             ], 500);
@@ -111,36 +138,65 @@ class TeamsController extends Controller
     public function update(Request $request, $id): JsonResponse
     {
         try {
-            $validatedData = $request->validate([
-                'team_name' => 'required|string|max:100|unique:teams,team_name,' . $id . ',id_teams',
-                'description' => 'nullable|string',
-                'logo' => 'nullable|file|image|mimes:jpeg,png,jpg|max:2048'
+            $team = Teams::findOrFail($id);
+
+            // Check if user is team captain
+            $isTeamCaptain = TeamMembers::where('id_teams', $id)
+                ->where('id_users', Auth::id())
+                ->where('is_captain', true)
+                ->exists();
+
+            if (!$isTeamCaptain) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You do not have permission to update this team'
+                ], 403);
+            }
+
+            $request->validate([
+                'team_name' => 'sometimes|required|string|max:100|unique:teams,team_name,' . $id . ',id_teams',
+                'description' => 'nullable|string|max:500',
+                'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             ]);
-        } catch (ValidationException $e) {
-            return response()->json(['error' => $e->errors()], 400);
-        }
 
-        $team = Teams::where('id_teams', $id)
-            ->where('id_captain', $request->user()->id_player)
-            ->first();
+            if ($request->has('team_name')) {
+                $team->team_name = $request->team_name;
+            }
 
-        if (!$team) {
-            return response()->json([
-                'message' => 'Team not found or you are not the captain'
-            ], 404);
-        }
+            if ($request->has('description')) {
+                $team->description = $request->description;
+            }
 
-        try {
-            $team->update($validatedData);
+            // Handle logo upload if provided
+            if ($request->hasFile('logo')) {
+                // Delete old logo if exists
+                if ($team->logo) {
+                    $oldPath = str_replace('/storage', 'public', $team->logo);
+                    Storage::delete($oldPath);
+                }
+
+                $logo = $request->file('logo');
+                $filename = 'team_' . time() . '.' . $logo->getClientOriginalExtension();
+                $path = $logo->storeAs('public/team_logos', $filename);
+                $team->logo = Storage::url($path);
+            }
+
+            $team->save();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Team updated successfully',
                 'data' => new TeamsResource($team)
             ]);
-
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
         } catch (\Exception $e) {
             return response()->json([
+                'success' => false,
                 'message' => 'Failed to update team',
                 'error' => $e->getMessage()
             ], 500);
@@ -256,4 +312,4 @@ class TeamsController extends Controller
             $query->orderBy('rating', 'desc');
         }
     }
-} 
+}

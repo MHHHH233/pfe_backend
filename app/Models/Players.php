@@ -32,4 +32,14 @@ class Players extends Model
     {
         return $this->hasMany(Rating::class, 'id_rated_player');
     }
-} 
+
+    public function sentRequests()
+    {
+        return $this->hasMany(PlayerRequest::class, 'sender', 'id_player');
+    }
+
+    public function receivedRequests()
+    {
+        return $this->hasMany(PlayerRequest::class, 'receiver', 'id_player');
+    }
+}

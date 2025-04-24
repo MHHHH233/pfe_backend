@@ -26,4 +26,4 @@ class TournoiTeams extends Model
     {
         return $this->belongsTo(Compte::class, 'capitain');
     }
-} 
+}

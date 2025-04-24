@@ -21,8 +21,16 @@ class CompteController extends Controller
     {
         try {
             $user = $request->user();
-            
-            return new CompteResource($user->load(['player', 'reservations']));
+
+            // Load player profile, reservations, and player requests
+            $user->load([
+                'player',
+                'reservations',
+                'player.sentRequests',
+                'player.receivedRequests'
+            ]);
+
+            return new CompteResource($user);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to fetch profile',
@@ -45,7 +53,7 @@ class CompteController extends Controller
                 'email' => 'required|email|unique:compte,email,' . $request->user()->id_compte . ',id_compte',
                 'telephone' => 'required|string|max:20',
                 'date_naissance' => 'required|date',
-                'age' => 'required|integer',                
+                'age' => 'required|integer',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -155,7 +163,7 @@ class CompteController extends Controller
     {
         try {
             $user = $request->user();
-            
+
             $activities = $user->load([
                 'reservations' => function($query) {
                     $query->orderBy('date', 'desc')
@@ -215,4 +223,4 @@ class CompteController extends Controller
             ], 500);
         }
     }
-} 
+}

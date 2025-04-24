@@ -25,17 +25,17 @@ use App\Http\Controllers\Api\User\V1\ReviewsController;
 Route::prefix('user')->as('user.')->group(function () {
     Route::prefix('v1')->as('v1.')->group(function () {
 
-        Route::apiResource('reservations', ReservationController::class);    
-        
-        
+        Route::apiResource('reservations', ReservationController::class);
+
+
         Route::apiResource('comptes', CompteController::class);
         Route::get('profile', [CompteController::class, 'profile']); // GET /comptes/profile
         Route::put('updateProfile', [CompteController::class, 'updateProfile']); // PUT /comptes/updateProfile
         Route::post('changePassword', [CompteController::class, 'changePassword']); // POST /comptes/changePassword
         Route::post('reportBug', [CompteController::class, 'reportBug']); // POST /comptes/reportBug
         Route::get('activityHistory', [CompteController::class, 'activityHistory']); // GET /comptes/activityHistory
-        Route::patch('comptes/{id}/reset-password', [CompteController::class, 'resetPassword']);        
-        
+        Route::patch('comptes/{id}/reset-password', [CompteController::class, 'resetPassword']);
+
 
         Route::apiResource('tournois', TournoiController::class);
         Route::apiResource('terrains', TerrainController::class);
@@ -45,13 +45,14 @@ Route::prefix('user')->as('user.')->group(function () {
         Route::apiResource('matches', MatchesController::class);
         Route::apiResource('players', PlayersController::class);
         Route::apiResource('stages', StagesController::class);
-        
-        
-        Route::apiResource('teams', TeamsController::class);
-        Route::post('teams/join', [TournoiTeamsController::class],'join');        
-        Route::post('teams/leave', [TournoiTeamsController::class],'leave');        
 
-        
+
+        Route::apiResource('teams', TeamsController::class);
+        Route::get('teams/user-teams', [TeamsController::class, 'getUserTeams']);
+        Route::post('teams/join', [TeamsController::class, 'join']);
+        Route::post('teams/leave', [TeamsController::class, 'leave']);
+
+
         // Add routes for each controller
         Route::apiResource('academie-activites', AcademieActivitesController::class);
         Route::apiResource('academie', AcademieController::class);
@@ -61,12 +62,13 @@ Route::prefix('user')->as('user.')->group(function () {
 
 
 
-        Route::apiResource('tournoi-teams', TournoiTeamsController::class);        
-        Route::get('tournoiStats', [TournoiTeamsController::class],'getStats');        
-        Route::post('tournoi-teams/withdraw', [TournoiTeamsController::class],'withdraw');        
-        Route::post('tournoi-teams/register', [TournoiTeamsController::class],'register');        
-        
+        Route::apiResource('tournoi-teams', TournoiTeamsController::class);
+        Route::post('tournoi-teams/register', [TournoiTeamsController::class, 'register']);
+        Route::delete('tournoi-teams/withdraw/{id_tournoi}/{id_teams}', [TournoiTeamsController::class, 'withdraw']);
+        Route::get('tournoi-teams/stats/{id_tournoi}/{id_teams}', [TournoiTeamsController::class, 'getStats']);
+        Route::get('tournoi-teams/user-registered', [TournoiTeamsController::class, 'getUserRegisteredTournaments']);
+
         Route::apiResource('reviews', ReviewsController::class)->only(['store', 'destroy']);
-                
+
     });
 });

@@ -11,6 +11,9 @@ class Teams extends Model
     public $timestamps = true;
 
     protected $fillable = [
+        'team_name',
+        'description',
+        'logo',
         'capitain',
         'total_matches',
         'rating',
@@ -31,4 +34,4 @@ class Teams extends Model
     {
         return $this->hasMany(Rating::class, 'id_rated_team');
     }
-} 
+}
