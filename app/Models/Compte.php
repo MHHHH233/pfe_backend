@@ -36,4 +36,9 @@ class Compte extends Authenticatable
     {
         return $this->hasMany(Reservation::class, 'id_client');
     }
+
+    public function reviews()
+    {
+        return $this->hasMany(Reviews::class, 'id_compte');
+    }
 } 

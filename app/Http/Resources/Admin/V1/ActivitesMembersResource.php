@@ -14,6 +14,11 @@ class ActivitesMembersResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return parent::toArray($request);
+        $data = parent::toArray($request);
+        
+        // We no longer need to look up the id_member since it's now directly linked
+        // via id_member_ref in the database relationship
+        
+        return $data;
     }
 }

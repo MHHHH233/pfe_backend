@@ -32,4 +32,9 @@ class Players extends Model
     {
         return $this->hasMany(Rating::class, 'id_rated_player');
     }
+    
+    public function teams()
+    {
+        return $this->belongsToMany(Teams::class, 'player_team', 'id_player', 'id_teams');
+    }
 } 

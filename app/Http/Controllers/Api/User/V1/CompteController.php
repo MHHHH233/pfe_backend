@@ -22,7 +22,7 @@ class CompteController extends Controller
         try {
             $user = $request->user();
             
-            return new CompteResource($user->load(['player', 'reservations']));
+            return new CompteResource($user->load(['player', 'reservations', 'reviews']));
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to fetch profile',
@@ -44,7 +44,7 @@ class CompteController extends Controller
                 'prenom' => 'required|string|max:50',
                 'email' => 'required|email|unique:compte,email,' . $request->user()->id_compte . ',id_compte',
                 'telephone' => 'required|string|max:20',
-                'date_naissance' => 'required|date',
+                // 'date_naissance' => 'required|date',
                 'age' => 'required|integer',                
             ]);
         } catch (ValidationException $e) {
@@ -162,15 +162,19 @@ class CompteController extends Controller
                           ->orderBy('heure', 'desc');
                 },
                 'player.ratings',
-                'player.teams'
+                'player.teams',
+                'reviews' => function($query) {
+                    $query->orderBy('created_at', 'desc');
+                }
             ]);
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'reservations' => $activities->reservations,
-                    'ratings' => $activities->player->ratings,
-                    'teams' => $activities->player->teams
+                    'ratings' => $activities->player ? $activities->player->ratings : [],
+                    'teams' => $activities->player ? $activities->player->teams : [],
+                    'reviews' => $activities->reviews
                 ]
             ]);
 
@@ -211,6 +215,66 @@ class CompteController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to report bug',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get user's notifications.
+     *
+     * @param Request $request
+     */
+    public function notifications(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            $notifications = $user->notifications()
+                ->orderBy('created_at', 'desc')
+                ->paginate(10);
+
+            return response()->json([
+                'success' => true,
+                'data' => $notifications
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to fetch notifications',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mark notification as read.
+     *
+     * @param Request $request
+     */
+    public function markNotificationAsRead(Request $request): JsonResponse
+    {
+        try {
+            $validatedData = $request->validate([
+                'notification_id' => 'required|exists:notifications,id'
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
+
+        try {
+            $user = $request->user();
+            $notification = $user->notifications()->findOrFail($validatedData['notification_id']);
+            $notification->markAsRead();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notification marked as read'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to mark notification as read',
                 'error' => $e->getMessage()
             ], 500);
         }

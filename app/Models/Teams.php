@@ -31,4 +31,9 @@ class Teams extends Model
     {
         return $this->hasMany(Rating::class, 'id_rated_team');
     }
+    
+    public function members()
+    {
+        return $this->belongsToMany(Players::class, 'player_team', 'id_teams', 'id_player');
+    }
 } 

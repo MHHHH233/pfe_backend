@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\Admin\V1\AcademieProgrammeController;
 use App\Http\Controllers\Api\Admin\V1\ActivitesMembersController;
 use App\Http\Controllers\Api\Admin\V1\AnalyticsController;
 use App\Http\Controllers\Api\Admin\V1\AcademieController;
+use App\Http\Controllers\Api\Admin\V1\AcademieMembersController;
 use App\Http\Controllers\Api\Admin\V1\ReviewsController;
 use App\Http\Resources\Admin\V1\PlayerRequestResource;
 
@@ -55,6 +56,8 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::apiResource('academie-activites', AcademieActivitesController::class);
         Route::apiResource('academie-coaches', AcademieCoachController::class);
         Route::apiResource('academie-programmes', AcademieProgrammeController::class);
+        Route::apiResource('academie-members', AcademieMembersController::class);
+        Route::get('academie/{academieId}/members', [AcademieMembersController::class, 'getByAcademie']);
         Route::apiResource('activites-members', ActivitesMembersController::class);
         Route::apiResource('tournoi-teams', TournoiTeamsController::class);        
         

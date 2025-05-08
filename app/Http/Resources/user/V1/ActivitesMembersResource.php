@@ -5,7 +5,7 @@ namespace App\Http\Resources\user\V1;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class AcademieMembersResource extends JsonResource
+class ActivitesMembersResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -14,6 +14,11 @@ class AcademieMembersResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        return parent::toArray($request);
+        $data = parent::toArray($request);
+        
+        // We no longer need to look up the id_member since it's now directly linked
+        // via id_member_ref in the database relationship
+        
+        return $data;
     }
 }

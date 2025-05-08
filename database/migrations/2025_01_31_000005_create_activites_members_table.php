@@ -8,15 +8,15 @@ class CreateActivitesMembersTable extends Migration
     public function up()
     {
         Schema::create('activites_members', function (Blueprint $table) {
-            $table->increments('id_member');
-            $table->unsignedInteger('id_compte')->nullable();
+            $table->increments('id_activity_member');
+            $table->unsignedInteger('id_member_ref')->nullable();
             $table->unsignedInteger('id_activites')->nullable();
             $table->timestamp('date_joined')->nullable();
             $table->timestamps();
 
-            $table->foreign('id_compte')
-                  ->references('id_compte')
-                  ->on('compte')
+            $table->foreign('id_member_ref')
+                  ->references('id_member')
+                  ->on('academie_members')
                   ->onDelete('cascade');
             $table->foreign('id_activites')
                   ->references('id_activites')

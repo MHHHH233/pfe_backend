@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Admin\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivitesMembers;
+use App\Models\AcademieActivites;
+use App\Models\AcademieMembers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -96,15 +98,52 @@ class ActivitesMembersController extends Controller
         try {
             $validatedData = $request->validate([
                 'id_activites' => 'required|integer|exists:academie_activites,id_activites',
-                'id_compte' => 'required|integer|exists:compte,id_compte',
+                'id_member_ref' => 'required|integer|exists:academie_members,id_member',
                 'date_joined' => 'required|date'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
+        // Check if the member is already in this activity
+        $existingMember = ActivitesMembers::where('id_activites', $validatedData['id_activites'])
+            ->where('id_member_ref', $validatedData['id_member_ref'])
+            ->first();
+            
+        if ($existingMember) {
+            return response()->json([
+                'message' => 'This member is already in this activity',
+                'data' => new ActivitesMembersResource($existingMember)
+            ], 409); // 409 Conflict
+        }
+
         try {
+            // Get the academy ID of the activity
+            $activity = AcademieActivites::find($validatedData['id_activites']);
+            if (!$activity) {
+                return response()->json([
+                    'message' => 'Activity not found'
+                ], 404);
+            }
+
+            // Check if the academie_member belongs to the same academy as the activity
+            $academyMember = AcademieMembers::find($validatedData['id_member_ref']);
+            if (!$academyMember) {
+                return response()->json([
+                    'message' => 'Academy member not found'
+                ], 404);
+            }
+            
+            if ($academyMember->id_academie != $activity->id_academie) {
+                return response()->json([
+                    'message' => 'User must be a member of the academy before joining its activities',
+                    'academie_id' => $activity->id_academie
+                ], 403);
+            }
+
+            // Create the activity member record
             $member = ActivitesMembers::create($validatedData);
+            
             return response()->json([
                 'message' => 'Activity Member created successfully',
                 'data' => new ActivitesMembersResource($member)
@@ -122,7 +161,7 @@ class ActivitesMembersController extends Controller
         try {
             $validatedData = $request->validate([
                 'id_activites' => 'required|integer|exists:academie_activites,id_activites',
-                'id_compte' => 'required|integer|exists:compte,id_compte',
+                'id_member_ref' => 'required|integer|exists:academie_members,id_member',
                 'date_joined' => 'required|date'
             ]);
         } catch (ValidationException $e) {
@@ -136,11 +175,35 @@ class ActivitesMembersController extends Controller
         }
 
         try {
+            // Get the academy ID of the activity
+            $activity = AcademieActivites::find($validatedData['id_activites']);
+            if (!$activity) {
+                return response()->json([
+                    'message' => 'Activity not found'
+                ], 404);
+            }
+
+            // Check if the academie_member belongs to the same academy as the activity
+            $academyMember = AcademieMembers::find($validatedData['id_member_ref']);
+            if (!$academyMember) {
+                return response()->json([
+                    'message' => 'Academy member not found'
+                ], 404);
+            }
+            
+            if ($academyMember->id_academie != $activity->id_academie) {
+                return response()->json([
+                    'message' => 'User must be a member of the academy before joining its activities',
+                    'academie_id' => $activity->id_academie
+                ], 403);
+            }
+
             $member->update($validatedData);
+            
             return response()->json([
                 'message' => 'Activity Member updated successfully',
                 'data' => new ActivitesMembersResource($member)
-            ]);
+            ], 200);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to update Activity Member',

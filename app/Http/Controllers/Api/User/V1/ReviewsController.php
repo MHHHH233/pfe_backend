@@ -11,6 +11,21 @@ use App\Http\Resources\User\V1\ReviewsResource;
 
 class ReviewsController extends Controller
 {
+    public function index(): JsonResponse
+    {
+        try {
+            $reviews = Reviews::with('compte')->get();
+            return response()->json([
+                'data' => ReviewsResource::collection($reviews)
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to fetch reviews',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     public function store(Request $request): JsonResponse
     {
         try {

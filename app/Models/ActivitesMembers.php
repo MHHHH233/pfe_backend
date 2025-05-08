@@ -7,18 +7,18 @@ use Illuminate\Database\Eloquent\Model;
 class ActivitesMembers extends Model
 {
     protected $table = 'activites_members';
-    protected $primaryKey = 'id_member';
+    protected $primaryKey = 'id_activity_member';
     public $timestamps = true;
 
     protected $fillable = [
-        'id_compte',
+        'id_member_ref',
         'id_activites',
         'date_joined'
     ];
 
-    public function compte()
+    public function member()
     {
-        return $this->belongsTo(Compte::class, 'id_compte');
+        return $this->belongsTo(AcademieMembers::class, 'id_member_ref', 'id_member');
     }
 
     public function activity()

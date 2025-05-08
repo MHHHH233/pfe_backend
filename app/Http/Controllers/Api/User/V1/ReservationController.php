@@ -346,4 +346,252 @@ class ReservationController extends Controller
                   ->orderBy('heure', 'desc');
         }
     }   
+
+    /**
+     * Get upcoming reservations for the authenticated user.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function upcoming(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $currentDateTime = now();
+            
+            // Log debugging information
+            \Illuminate\Support\Facades\Log::debug('User ID: ' . $user->id_compte);
+            \Illuminate\Support\Facades\Log::debug('Current DateTime: ' . $currentDateTime);
+
+            $query = DB::table('reservation')
+                ->select([
+                    'reservation.id_reservation',
+                    'reservation.num_res',
+                    'reservation.id_client',
+                    'reservation.id_terrain',
+                    'reservation.Name',
+                    'reservation.date',
+                    'reservation.heure',
+                    'reservation.etat',
+                    'reservation.created_at'
+                ]);
+            
+            // Modify query to handle both null and matching id_client
+            $query->where(function($q) use ($user) {
+                $q->where('reservation.id_client', $user->id_compte)
+                  ->orWhere('reservation.id_client', null);
+            })
+            ->where(DB::raw("CONCAT(reservation.date, ' ', reservation.heure)"), '>', now())
+            ->where('reservation.etat', '!=', 'annuler')
+            ->orderBy('reservation.date', 'asc')
+            ->orderBy('reservation.heure', 'asc');
+            
+            // Log the SQL query
+            \Illuminate\Support\Facades\Log::debug('SQL Query: ' . $query->toSql());
+            \Illuminate\Support\Facades\Log::debug('SQL Bindings: ' . json_encode($query->getBindings()));
+            
+            $upcomingReservations = $query->get();
+            
+            return response()->json([
+                'status' => 'success',
+                'data' => $upcomingReservations
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error in upcoming method: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch upcoming reservations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get reservation history for the authenticated user.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function history(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            $currentDateTime = now();
+
+            $historyReservations = DB::table('reservation')
+                ->select([
+                    'reservation.id_reservation',
+                    'reservation.num_res',
+                    'reservation.id_client',
+                    'reservation.id_terrain',
+                    'reservation.Name',
+                    'reservation.date',
+                    'reservation.heure',
+                    'reservation.etat',
+                    'reservation.created_at'
+                ])
+                ->where('reservation.id_client', $user->id_compte)
+                ->where(function($query) use ($currentDateTime) {
+                    $query->where(DB::raw("CONCAT(reservation.date, ' ', reservation.heure)"), '<', $currentDateTime)
+                          ->orWhere('reservation.etat', 'annuler');
+                })
+                ->orderBy('reservation.date', 'desc')
+                ->orderBy('reservation.heure', 'desc')
+                ->paginate(10);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $historyReservations
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch reservation history',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancel a reservation.
+     *
+     * @param int $id
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function cancel($id, Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            $reservation = Reservation::where('id_reservation', $id)
+                ->where(function($query) use ($user) {
+                    $query->where('id_client', $user->id_compte)
+                          ->orWhere('id_client', null);
+                })
+                ->first();
+
+            if (!$reservation) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Reservation not found or unauthorized'
+                ], 404);
+            }
+
+            // Check if the reservation is in the future
+            $reservationDateTime = \Carbon\Carbon::parse($reservation->date . ' ' . $reservation->heure);
+            if ($reservationDateTime->isPast()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Cannot cancel past reservations'
+                ], 400);
+            }
+
+            // Check if the reservation is already cancelled
+            if ($reservation->etat === 'annuler') {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Reservation is already cancelled'
+                ], 400);
+            }
+
+            // Make sure to properly quote the value
+            $reservation->etat = 'annuler';
+            $reservation->save();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Reservation cancelled successfully',
+                'data' => new ReservationResource($reservation)
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error in cancel method: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to cancel reservation',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get reservations for a specific week.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function week(Request $request): JsonResponse
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+            
+            $date = $request->input('date', now()->toDateString());
+            $startOfWeek = \Carbon\Carbon::parse($date)->startOfWeek();
+            $endOfWeek = \Carbon\Carbon::parse($date)->endOfWeek();
+            
+            // Log debugging information
+            \Illuminate\Support\Facades\Log::debug('User ID: ' . $user->id_compte);
+            \Illuminate\Support\Facades\Log::debug('Week Range: ' . $startOfWeek->toDateString() . ' to ' . $endOfWeek->toDateString());
+
+            $query = DB::table('reservation')
+                ->select([
+                    'reservation.id_reservation',
+                    'reservation.num_res',
+                    'reservation.id_client',
+                    'reservation.id_terrain',
+                    'reservation.Name',
+                    'reservation.date',
+                    'reservation.heure',
+                    'reservation.etat',
+                    'reservation.created_at'
+                ]);
+            
+            // Modify query to handle both null and matching id_client
+            $query->where(function($q) use ($user) {
+                $q->where('reservation.id_client', $user->id_compte)
+                  ->orWhere('reservation.id_client', null);
+            })
+            ->whereBetween('reservation.date', [$startOfWeek->toDateString(), $endOfWeek->toDateString()])
+            ->orderBy('reservation.date', 'asc')
+            ->orderBy('reservation.heure', 'asc');
+            
+            // Log the SQL query
+            \Illuminate\Support\Facades\Log::debug('SQL Query: ' . $query->toSql());
+            \Illuminate\Support\Facades\Log::debug('SQL Bindings: ' . json_encode($query->getBindings()));
+            
+            $reservations = $query->get();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $reservations,
+                'week_range' => [
+                    'start' => $startOfWeek->toDateString(),
+                    'end' => $endOfWeek->toDateString()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Error in week method: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch reservations for the week: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 } 

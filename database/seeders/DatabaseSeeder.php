@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             StagesSeeder::class,         
             AcademieSeeder::class,       
             AcademieCoachSeeder::class,  
+            AcademieMembersSeeder::class, // Add members to academies
             TeamsSeeder::class,          
             AcademieProgrammeSeeder::class,    
             AcademieActivitesSeeder::class,    

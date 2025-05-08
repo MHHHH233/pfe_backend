@@ -33,4 +33,9 @@ class Academie extends Model
     {
         return $this->hasMany(AcademieProgramme::class, 'id_academie');
     }
+    
+    public function members()
+    {
+        return $this->hasMany(AcademieMembers::class, 'id_academie');
+    }
 } 
