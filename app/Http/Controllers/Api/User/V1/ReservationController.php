@@ -9,6 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use App\Http\Resources\user\V1\ReservationResource;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\AccountCreated;
 
 class ReservationController extends Controller
 {
@@ -187,6 +189,9 @@ class ReservationController extends Controller
 
             // Check if email or telephone exists in compte table
             $client = null;
+            $newPassword = null;
+            $accountCreated = false;
+            
             if (!empty($email) || !empty($telephone)) {
                 $query = \App\Models\Compte::query();
                 
@@ -225,14 +230,15 @@ class ReservationController extends Controller
                 // If client doesn't exist, create a new account
                 else if (!$client && !empty($email)) {
                     // Generate a random password
-                    $password = \Illuminate\Support\Str::random(10);
+                    $newPassword = \Illuminate\Support\Str::random(10);
+                    $accountCreated = true;
                     
                     $client = \App\Models\Compte::create([
                         'name' => $name ?? 'Guest',
                         'prenom' => $name ?? 'Guest',
                         'age' => 20,
                         'email' => $email,
-                        'password' => \Illuminate\Support\Facades\Hash::make($password),
+                        'password' => \Illuminate\Support\Facades\Hash::make($newPassword),
                         'telephone' => $telephone ?? '',
                         'pfp' => app(\App\Http\Controllers\Api\AuthController::class)->getRandomProfilePicture(),
                         'created_at' => now(),
@@ -241,8 +247,6 @@ class ReservationController extends Controller
                     
                     // Assign user role
                     $client->assignRole('user');
-                    
-                    // TODO: Send email with account details and password
                 }
             }
 
@@ -270,6 +274,23 @@ class ReservationController extends Controller
                     'Name' => $name ?? ($client ? $client->name : null),
                     'num_res' => $numRes
                 ]);
+            }
+            
+            // If a new account was created and we have an email, send the account details
+            if ($accountCreated && !empty($email) && !empty($newPassword)) {
+                try {
+                    Mail::to($email)->send(new AccountCreated(
+                        $name ?? 'Guest',
+                        $email,
+                        $newPassword,
+                        $numRes
+                    ));
+                    
+                    \Illuminate\Support\Facades\Log::info("Account creation email sent to: " . $email);
+                } catch (\Exception $mailException) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send account email: " . $mailException->getMessage());
+                    // Continue with the process even if email fails
+                }
             }
 
             return response()->json([

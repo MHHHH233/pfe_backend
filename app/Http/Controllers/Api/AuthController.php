@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\AuthResource;
 use App\Http\Resources\user\V1\CompteResource;
 use App\Models\Compte;
+use App\Models\AcademieMembers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -95,6 +96,14 @@ class AuthController extends Controller
         }
         $token = $user->createToken('auth_token')->plainTextToken;
         $roles = $user->getRoleNames();
+        
+        // Get user's academie memberships with details
+        $academieMemberships = AcademieMembers::where('id_compte', $user->id_compte)
+            ->select('id_member', 'id_academie', 'subscription_plan', 'status')
+            ->get();
+        
+        $hasAcademieMembership = $academieMemberships->count() > 0;
+        
         return response()->json(
             [
                 'status' => true,
@@ -105,6 +114,8 @@ class AuthController extends Controller
                     'user' => $user,
                     'roles' => $roles,
                     'token_type' => 'Bearer',
+                    'has_academie_membership' => $hasAcademieMembership,
+                    'academie_memberships' => $academieMemberships
                 ],
             ],
             200,
@@ -169,6 +180,14 @@ class AuthController extends Controller
         // Retrieve the user associated with the token
         $user = $token->tokenable;
         $roles = $user->getRoleNames();
+        
+        // Get user's academie memberships with details
+        $academieMemberships = AcademieMembers::where('id_compte', $user->id_compte)
+            ->select('id_member', 'id_academie', 'subscription_plan', 'status')
+            ->get();
+        
+        $hasAcademieMembership = $academieMemberships->count() > 0;
+        
         return response()->json(
             [
                 'status' => true,
@@ -179,6 +198,8 @@ class AuthController extends Controller
                     'user' => $user,
                     'roles' => $roles,
                     'token_type' => 'Bearer',
+                    'has_academie_membership' => $hasAcademieMembership,
+                    'academie_memberships' => $academieMemberships
                 ],
             ],
             200,

@@ -119,12 +119,16 @@ class AcademieMembersController extends Controller
                 ], 404);
             }
 
-            $membership->delete();
+            // Get the member ID before deleting
+            $memberId = $membership->id_member;
 
-            // Also remove user from all activities of this academy
+            // Delete activities memberships first using the correct foreign key
             ActivitesMembers::whereHas('activity', function($query) use ($academieId) {
                 $query->where('id_academie', $academieId);
-            })->where('id_compte', $compte->id_compte)->delete();
+            })->where('id_member_ref', $memberId)->delete();
+
+            // Then delete the membership
+            $membership->delete();
 
             return response()->json([
                 'success' => true,
