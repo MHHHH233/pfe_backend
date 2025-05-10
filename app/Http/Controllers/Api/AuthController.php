@@ -104,6 +104,10 @@ class AuthController extends Controller
         
         $hasAcademieMembership = $academieMemberships->count() > 0;
         
+        // Get user's teams where they are captain
+        $teams = \App\Models\Teams::where('capitain', $user->id_compte)->get();
+        $hasTeams = $teams->count() > 0;
+        
         return response()->json(
             [
                 'status' => true,
@@ -115,7 +119,9 @@ class AuthController extends Controller
                     'roles' => $roles,
                     'token_type' => 'Bearer',
                     'has_academie_membership' => $hasAcademieMembership,
-                    'academie_memberships' => $academieMemberships
+                    'academie_memberships' => $academieMemberships,
+                    'has_teams' => $hasTeams,
+                    'teams' => $teams
                 ],
             ],
             200,
@@ -188,6 +194,10 @@ class AuthController extends Controller
         
         $hasAcademieMembership = $academieMemberships->count() > 0;
         
+        // Get user's teams where they are captain
+        $teams = \App\Models\Teams::where('capitain', $user->id_compte)->get();
+        $hasTeams = $teams->count() > 0;
+        
         return response()->json(
             [
                 'status' => true,
@@ -199,7 +209,9 @@ class AuthController extends Controller
                     'roles' => $roles,
                     'token_type' => 'Bearer',
                     'has_academie_membership' => $hasAcademieMembership,
-                    'academie_memberships' => $academieMemberships
+                    'academie_memberships' => $academieMemberships,
+                    'has_teams' => $hasTeams,
+                    'teams' => $teams
                 ],
             ],
             200,

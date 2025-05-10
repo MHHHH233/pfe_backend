@@ -20,7 +20,7 @@ class PlayerRequestController extends Controller
                     'nullable',
                     'string',
                     function ($attribute, $value, $fail) {
-                        $validIncludes = ['sender', 'receiver'];
+                        $validIncludes = ['sender', 'receiver', 'team', 'sender.compte', 'receiver.compte'];
                         $includes = explode(',', $value);
                         foreach ($includes as $include) {
                             if (!in_array($include, $validIncludes)) {
@@ -33,7 +33,9 @@ class PlayerRequestController extends Controller
                 'sort_by' => 'nullable|string|in:match_date,starting_time',
                 'sort_order' => 'nullable|string|in:asc,desc',
                 'search' => 'nullable|string',
-                'date' => 'nullable|date'
+                'date' => 'nullable|date',
+                'request_type' => 'nullable|string|in:match,team',
+                'status' => 'nullable|string|in:pending,accepted,rejected,expired,cancelled'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -64,7 +66,7 @@ class PlayerRequestController extends Controller
                     'nullable',
                     'string',
                     function ($attribute, $value, $fail) {
-                        $validIncludes = ['sender', 'receiver'];
+                        $validIncludes = ['sender', 'receiver', 'team', 'sender.compte', 'receiver.compte'];
                         $includes = explode(',', $value);
                         foreach ($includes as $include) {
                             if (!in_array($include, $validIncludes)) {
@@ -100,15 +102,35 @@ class PlayerRequestController extends Controller
             $validatedData = $request->validate([
                 'sender' => 'required|integer|exists:players,id_player',
                 'receiver' => 'required|integer|exists:players,id_player',
-                'match_date' => 'required|date',
-                'starting_time' => 'required|date_format:H:i:s',
-                'message' => 'nullable|string|max:50'
+                'match_date' => 'required_if:request_type,match|nullable|date',
+                'starting_time' => 'required_if:request_type,match|nullable|date_format:H:i:s',
+                'message' => 'nullable|string|max:255',
+                'request_type' => 'nullable|string|in:match,team',
+                'team_id' => 'required_if:request_type,team|nullable|exists:teams,id_teams'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
         try {
+            // Set default request type if not provided
+            if (!isset($validatedData['request_type'])) {
+                $validatedData['request_type'] = 'match';
+            }
+            
+            // Set default values for team invitations
+            if ($validatedData['request_type'] === 'team') {
+                $validatedData['match_date'] = now()->format('Y-m-d');
+                $validatedData['starting_time'] = now()->format('H:i:s');
+            }
+            
+            // Set default expiration date if not provided
+            if (!isset($validatedData['expires_at'])) {
+                $validatedData['expires_at'] = now()->addDays(7);
+            }
+            
+            $validatedData['status'] = 'pending';
+            
             $playerRequest = PlayerRequest::create($validatedData);
             return response()->json([
                 'message' => 'Player Request created successfully',
@@ -148,6 +170,14 @@ class PlayerRequestController extends Controller
     {
         if ($request->has('date')) {
             $query->whereDate('match_date', $request->input('date'));
+        }
+        
+        if ($request->has('request_type')) {
+            $query->where('request_type', $request->input('request_type'));
+        }
+        
+        if ($request->has('status')) {
+            $query->where('status', $request->input('status'));
         }
     }
 

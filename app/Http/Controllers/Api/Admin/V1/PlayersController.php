@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Players;
+use App\Models\Teams;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -19,7 +20,7 @@ class PlayersController extends Controller
                     'nullable',
                     'string',
                     function ($attribute, $value, $fail) {
-                        $validIncludes = ['compte', 'ratings'];
+                        $validIncludes = ['compte', 'ratings', 'teams'];
                         $includes = explode(',', $value);
                         foreach ($includes as $include) {
                             if (!in_array($include, $validIncludes)) {
@@ -63,7 +64,7 @@ class PlayersController extends Controller
                     'nullable',
                     'string',
                     function ($attribute, $value, $fail) {
-                        $validIncludes = ['compte', 'ratings'];
+                        $validIncludes = ['compte', 'ratings', 'teams'];
                         $includes = explode(',', $value);
                         foreach ($includes as $include) {
                             if (!in_array($include, $validIncludes)) {
@@ -196,6 +197,138 @@ class PlayersController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Add player to a team.
+     *
+     * @param Request $request
+     * @param int $id
+     * @return JsonResponse
+     */
+    public function addToTeam(Request $request, $id): JsonResponse
+    {
+        try {
+            $validatedData = $request->validate([
+                'team_id' => 'required|exists:teams,id_teams',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
+
+        $player = Players::find($id);
+        $team = Teams::find($validatedData['team_id']);
+
+        if (!$player) {
+            return response()->json(['message' => 'Player not found'], 404);
+        }
+
+        if (!$team) {
+            return response()->json(['message' => 'Team not found'], 404);
+        }
+
+        // Check if player is already in the team
+        if ($player->teams()->where('id_teams', $team->id_teams)->exists()) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Player is already a member of this team'
+            ], 409);
+        }
+
+        try {
+            $player->teams()->attach($team->id_teams);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Player added to team successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to add player to team',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove player from a team.
+     *
+     * @param Request $request
+     * @param int $id
+     * @return JsonResponse
+     */
+    public function removeFromTeam(Request $request, $id): JsonResponse
+    {
+        try {
+            $validatedData = $request->validate([
+                'team_id' => 'required|exists:teams,id_teams',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
+
+        $player = Players::find($id);
+        $team = Teams::find($validatedData['team_id']);
+
+        if (!$player) {
+            return response()->json(['message' => 'Player not found'], 404);
+        }
+
+        if (!$team) {
+            return response()->json(['message' => 'Team not found'], 404);
+        }
+
+        // Check if player is in the team
+        if (!$player->teams()->where('id_teams', $team->id_teams)->exists()) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Player is not a member of this team'
+            ], 409);
+        }
+
+        // Check if player is the captain (cannot remove captain)
+        if ($team->capitain === $player->id_player) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Team captain cannot be removed from the team'
+            ], 400);
+        }
+
+        try {
+            $player->teams()->detach($team->id_teams);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Player removed from team successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to remove player from team',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get teams for a player.
+     *
+     * @param int $id
+     * @return JsonResponse
+     */
+    public function getTeams($id): JsonResponse
+    {
+        $player = Players::with('teams')->find($id);
+
+        if (!$player) {
+            return response()->json(['message' => 'Player not found'], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $player->teams
+        ]);
     }
 
     protected function applyFilters(Request $request, $query)

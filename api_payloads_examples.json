@@ -1,0 +1,474 @@
+{
+  "player_team_api_examples": {
+    "description": "Example payloads for Player-Team API endpoints",
+    "user_api": {
+      "GET_player_teams": {
+        "endpoint": "/api/user/v1/player-teams",
+        "description": "Get all player-team relationships",
+        "query_parameters": {
+          "player_id": "1",
+          "team_id": "3",
+          "include": "player,team,player.compte"
+        },
+        "response": {
+          "data": [
+            {
+              "id": 1,
+              "player_id": 1,
+              "team_id": 3,
+              "player": {
+                "id": 1,
+                "position": "Forward",
+                "rating": 4.2,
+                "compte": {
+                  "id": 5,
+                  "nom": "Smith",
+                  "prenom": "John",
+                  "profile_picture": "profiles/john-smith.jpg"
+                }
+              },
+              "team": {
+                "id": 3,
+                "name": "Dream Team",
+                "rating": 4.5,
+                "captain_id": 1
+              },
+              "created_at": "2023-05-15T10:30:00.000000Z",
+              "updated_at": "2023-05-15T10:30:00.000000Z"
+            }
+          ],
+          "links": {
+            "first": "http://localhost:8000/api/user/v1/player-teams?page=1",
+            "last": "http://localhost:8000/api/user/v1/player-teams?page=1",
+            "prev": null,
+            "next": null
+          },
+          "meta": {
+            "current_page": 1,
+            "from": 1,
+            "last_page": 1,
+            "path": "http://localhost:8000/api/user/v1/player-teams",
+            "per_page": 10,
+            "to": 1,
+            "total": 1
+          }
+        }
+      },
+      "POST_player_teams": {
+        "endpoint": "/api/user/v1/player-teams",
+        "description": "Add a player to a team",
+        "request": {
+          "player_id": 1,
+          "team_id": 3
+        },
+        "response": {
+          "success": true,
+          "message": "Player added to team successfully",
+          "data": {
+            "id": 1,
+            "player_id": 1,
+            "team_id": 3,
+            "created_at": "2023-05-15T10:30:00.000000Z",
+            "updated_at": "2023-05-15T10:30:00.000000Z"
+          }
+        }
+      },
+      "GET_player_teams_id": {
+        "endpoint": "/api/user/v1/player-teams/1",
+        "description": "Get a specific player-team relationship",
+        "query_parameters": {
+          "include": "player,team"
+        },
+        "response": {
+          "id": 1,
+          "player_id": 1,
+          "team_id": 3,
+          "player": {
+            "id": 1,
+            "position": "Forward",
+            "rating": 4.2
+          },
+          "team": {
+            "id": 3,
+            "name": "Dream Team",
+            "rating": 4.5,
+            "captain_id": 1
+          },
+          "created_at": "2023-05-15T10:30:00.000000Z",
+          "updated_at": "2023-05-15T10:30:00.000000Z"
+        }
+      },
+      "DELETE_player_teams_id": {
+        "endpoint": "/api/user/v1/player-teams/1",
+        "description": "Remove a player from a team",
+        "response": {
+          "success": true,
+          "message": "Player removed from team successfully"
+        }
+      }
+    },
+    "admin_api": {
+      "GET_player_teams": {
+        "endpoint": "/api/admin/v1/player-teams",
+        "description": "Get all player-team relationships (admin)",
+        "query_parameters": {
+          "player_id": "1",
+          "team_id": "3",
+          "include": "player,team,player.compte",
+          "paginationSize": "15"
+        },
+        "response": {
+          "data": [
+            {
+              "id": 1,
+              "player_id": 1,
+              "team_id": 3,
+              "player": {
+                "id": 1,
+                "position": "Forward",
+                "rating": 4.2,
+                "total_matches": 15,
+                "compte": {
+                  "id": 5,
+                  "nom": "Smith",
+                  "prenom": "John",
+                  "email": "john.smith@example.com",
+                  "phone": "123456789",
+                  "profile_picture": "profiles/john-smith.jpg"
+                }
+              },
+              "team": {
+                "id": 3,
+                "name": "Dream Team",
+                "rating": 4.5,
+                "total_matches": 8,
+                "captain_id": 1
+              },
+              "created_at": "2023-05-15T10:30:00.000000Z",
+              "updated_at": "2023-05-15T10:30:00.000000Z"
+            }
+          ],
+          "links": {
+            "first": "http://localhost:8000/api/admin/v1/player-teams?page=1",
+            "last": "http://localhost:8000/api/admin/v1/player-teams?page=1",
+            "prev": null,
+            "next": null
+          },
+          "meta": {
+            "current_page": 1,
+            "from": 1,
+            "last_page": 1,
+            "path": "http://localhost:8000/api/admin/v1/player-teams",
+            "per_page": 15,
+            "to": 1,
+            "total": 1
+          }
+        }
+      },
+      "POST_player_teams": {
+        "endpoint": "/api/admin/v1/player-teams",
+        "description": "Add a player to a team (admin)",
+        "request": {
+          "player_id": 1,
+          "team_id": 3
+        },
+        "response": {
+          "success": true,
+          "message": "Player added to team successfully",
+          "data": {
+            "id": 1,
+            "player_id": 1,
+            "team_id": 3,
+            "created_at": "2023-05-15T10:30:00.000000Z",
+            "updated_at": "2023-05-15T10:30:00.000000Z"
+          }
+        }
+      },
+      "GET_player_teams_id": {
+        "endpoint": "/api/admin/v1/player-teams/1",
+        "description": "Get a specific player-team relationship (admin)",
+        "query_parameters": {
+          "include": "player,team,player.compte"
+        },
+        "response": {
+          "id": 1,
+          "player_id": 1,
+          "team_id": 3,
+          "player": {
+            "id": 1,
+            "position": "Forward",
+            "rating": 4.2,
+            "total_matches": 15,
+            "compte": {
+              "id": 5,
+              "nom": "Smith",
+              "prenom": "John",
+              "email": "john.smith@example.com",
+              "phone": "123456789",
+              "profile_picture": "profiles/john-smith.jpg"
+            }
+          },
+          "team": {
+            "id": 3,
+            "name": "Dream Team",
+            "rating": 4.5,
+            "total_matches": 8,
+            "captain_id": 1
+          },
+          "created_at": "2023-05-15T10:30:00.000000Z",
+          "updated_at": "2023-05-15T10:30:00.000000Z"
+        }
+      },
+      "PUT_player_teams_id": {
+        "endpoint": "/api/admin/v1/player-teams/1",
+        "description": "Update a player-team relationship (admin)",
+        "response": {
+          "success": true,
+          "message": "Player-Team relationship updated successfully",
+          "data": {
+            "id": 1,
+            "player_id": 1,
+            "team_id": 3,
+            "created_at": "2023-05-15T10:30:00.000000Z",
+            "updated_at": "2023-05-15T10:30:00.000000Z"
+          }
+        }
+      },
+      "DELETE_player_teams_id": {
+        "endpoint": "/api/admin/v1/player-teams/1",
+        "description": "Remove a player from a team (admin)",
+        "response": {
+          "success": true,
+          "message": "Player removed from team successfully"
+        }
+      },
+      "POST_player_teams_bulk_add": {
+        "endpoint": "/api/admin/v1/player-teams/bulk-add",
+        "description": "Add multiple players to a team (admin)",
+        "request": {
+          "team_id": 3,
+          "player_ids": [1, 2, 5, 8]
+        },
+        "response": {
+          "success": true,
+          "message": "3 players added to team successfully. 1 players were already in the team.",
+          "errors": []
+        }
+      },
+      "POST_player_teams_bulk_remove": {
+        "endpoint": "/api/admin/v1/player-teams/bulk-remove",
+        "description": "Remove multiple players from a team (admin)",
+        "request": {
+          "team_id": 3,
+          "player_ids": [2, 5, 8]
+        },
+        "response": {
+          "success": true,
+          "message": "3 players removed from team successfully"
+        }
+      }
+    },
+    "player_requests_api": {
+      "GET_player_requests": {
+        "endpoint": "/api/user/v1/player-requests",
+        "description": "Get all player requests",
+        "query_parameters": {
+          "include": "sender,receiver",
+          "paginationSize": "10",
+          "sort_by": "match_date",
+          "sort_order": "desc",
+          "date": "2023-05-20"
+        },
+        "response": {
+          "data": [
+            {
+              "id": 1,
+              "sender": 1,
+              "receiver": 2,
+              "match_date": "2023-05-20",
+              "starting_time": "18:00:00",
+              "message": "Let's play a match!",
+              "created_at": "2023-05-15T10:30:00.000000Z",
+              "updated_at": "2023-05-15T10:30:00.000000Z",
+              "sender_data": {
+                "id": 1,
+                "position": "Forward",
+                "rating": 4.2,
+                "compte": {
+                  "id": 5,
+                  "nom": "Smith",
+                  "prenom": "John",
+                  "profile_picture": "profiles/john-smith.jpg"
+                }
+              },
+              "receiver_data": {
+                "id": 2,
+                "position": "Midfielder",
+                "rating": 4.0,
+                "compte": {
+                  "id": 6,
+                  "nom": "Doe",
+                  "prenom": "Jane",
+                  "profile_picture": "profiles/jane-doe.jpg"
+                }
+              }
+            }
+          ],
+          "links": {
+            "first": "http://localhost:8000/api/user/v1/player-requests?page=1",
+            "last": "http://localhost:8000/api/user/v1/player-requests?page=1",
+            "prev": null,
+            "next": null
+          },
+          "meta": {
+            "current_page": 1,
+            "from": 1,
+            "last_page": 1,
+            "path": "http://localhost:8000/api/user/v1/player-requests",
+            "per_page": 10,
+            "to": 1,
+            "total": 1
+          }
+        }
+      },
+      "POST_player_requests": {
+        "endpoint": "/api/user/v1/player-requests",
+        "description": "Create a player request",
+        "request": {
+          "sender": 1,
+          "receiver": 2,
+          "match_date": "2023-05-20",
+          "starting_time": "18:00:00",
+          "message": "Let's play a match!"
+        },
+        "response": {
+          "message": "Player Request created successfully",
+          "data": {
+            "id": 1,
+            "sender": 1,
+            "receiver": 2,
+            "match_date": "2023-05-20",
+            "starting_time": "18:00:00",
+            "message": "Let's play a match!",
+            "created_at": "2023-05-15T10:30:00.000000Z",
+            "updated_at": "2023-05-15T10:30:00.000000Z"
+          }
+        }
+      }
+    },
+    "teams_api": {
+      "GET_teams": {
+        "endpoint": "/api/user/v1/teams",
+        "description": "Get all teams",
+        "query_parameters": {
+          "include": "captain,members",
+          "search": "Dream",
+          "sort_by": "rating",
+          "sort_order": "desc",
+          "my_teams": "true"
+        },
+        "response": {
+          "data": [
+            {
+              "id": 3,
+              "capitain": 1,
+              "team_name": "Dream Team",
+              "total_matches": 8,
+              "rating": 4.5,
+              "starting_time": "19:00:00",
+              "finishing_time": "21:00:00",
+              "misses": 1,
+              "invites_accepted": 7,
+              "invites_refused": 2,
+              "total_invites": 9,
+              "created_at": "2023-05-10T14:20:00.000000Z",
+              "updated_at": "2023-05-10T14:20:00.000000Z",
+              "captain": {
+                "id": 5,
+                "nom": "Smith",
+                "prenom": "John",
+                "email": "john.smith@example.com",
+                "profile_picture": "profiles/john-smith.jpg"
+              },
+              "members": [
+                {
+                  "id": 1,
+                  "position": "Forward",
+                  "rating": 4.2,
+                  "compte": {
+                    "id": 5,
+                    "nom": "Smith",
+                    "prenom": "John",
+                    "profile_picture": "profiles/john-smith.jpg"
+                  }
+                },
+                {
+                  "id": 2,
+                  "position": "Midfielder",
+                  "rating": 4.0,
+                  "compte": {
+                    "id": 6,
+                    "nom": "Doe",
+                    "prenom": "Jane",
+                    "profile_picture": "profiles/jane-doe.jpg"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "POST_teams": {
+        "endpoint": "/api/user/v1/teams",
+        "description": "Create a new team",
+        "request": {
+          "capitain": 1,
+          "team_name": "Dream Team",
+          "starting_time": "19:00:00",
+          "finishing_time": "21:00:00"
+        },
+        "response": {
+          "success": true,
+          "message": "Team created successfully",
+          "data": {
+            "id": 3,
+            "capitain": 1,
+            "team_name": "Dream Team",
+            "total_matches": 0,
+            "rating": 0,
+            "starting_time": "19:00:00",
+            "finishing_time": "21:00:00",
+            "misses": 0,
+            "invites_accepted": 0,
+            "invites_refused": 0,
+            "total_invites": 0,
+            "created_at": "2023-05-10T14:20:00.000000Z",
+            "updated_at": "2023-05-10T14:20:00.000000Z"
+          }
+        }
+      },
+      "POST_teams_join": {
+        "endpoint": "/api/user/v1/teams/join",
+        "description": "Join a team",
+        "request": {
+          "team_id": 3
+        },
+        "response": {
+          "success": true,
+          "message": "Successfully joined the team"
+        }
+      },
+      "POST_teams_leave": {
+        "endpoint": "/api/user/v1/teams/leave",
+        "description": "Leave a team",
+        "request": {
+          "team_id": 3
+        },
+        "response": {
+          "success": true,
+          "message": "Successfully left the team"
+        }
+      }
+    }
+  }
+} 

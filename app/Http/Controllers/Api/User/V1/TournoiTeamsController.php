@@ -66,31 +66,42 @@ class TournoiTeamsController extends Controller
             $validatedData = $request->validate([
                 'id_tournoi' => 'required|integer|exists:tournoi,id_tournoi',
                 'id_teams' => 'required|integer|exists:teams,id_teams',
+                'team_name' => 'required|string|max:255',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
         try {
-            // Check if team is already registered
-            $exists = TournoiTeams::where('id_tournoi', $validatedData['id_tournoi'])
-                ->where('id_teams', $validatedData['id_teams'])
-                ->exists();
-
-            if ($exists) {
+            // Get the team to get the captain ID
+            $team = \App\Models\Teams::find($validatedData['id_teams']);
+            if (!$team) {
                 return response()->json([
                     'error' => true,
-                    'message' => 'Team is already registered for this tournament'
+                    'message' => 'Team not found'
+                ], 404);
+            }
+
+            // Check if a team with this name is already registered in this tournament
+            $existsByName = TournoiTeams::where('id_tournoi', $validatedData['id_tournoi'])
+                ->where('team_name', $validatedData['team_name'])
+                ->exists();
+
+            if ($existsByName) {
+                return response()->json([
+                    'error' => true,
+                    'message' => 'A team with this name is already registered for this tournament'
                 ], 409);
             }
 
-            $tournoiTeam = TournoiTeams::create([
-                'id_tournoi' => $validatedData['id_tournoi'],
-                'id_teams' => $validatedData['id_teams'],
-                'points' => 0,
-                'goals_scored' => 0,
-                'goals_conceded' => 0
-            ]);
+            // Create the tournament team
+            $tournoiTeam = new TournoiTeams();
+            $tournoiTeam->id_tournoi = $validatedData['id_tournoi'];
+            $tournoiTeam->team_name = $validatedData['team_name'];
+            $tournoiTeam->capitain = $team->capitain;
+            // You can include a description if necessary
+            // $tournoiTeam->descrption = $request->description ?? null;
+            $tournoiTeam->save();
 
             return response()->json([
                 'success' => true,

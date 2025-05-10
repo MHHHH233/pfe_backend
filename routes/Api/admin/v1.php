@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\Admin\V1\AnalyticsController;
 use App\Http\Controllers\Api\Admin\V1\AcademieController;
 use App\Http\Controllers\Api\Admin\V1\AcademieMembersController;
 use App\Http\Controllers\Api\Admin\V1\ReviewsController;
+use App\Http\Controllers\Api\Admin\V1\PlayerTeamController;
 use App\Http\Resources\Admin\V1\PlayerRequestResource;
 
 Route::prefix('admin')->as('admin.')->group(function () {
@@ -46,7 +47,21 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::patch('player-requests/{id}/reject', [PlayerRequestController::class, 'reject']);
         Route::patch('player-requests/{id}/accept', [PlayerRequestController::class, 'accept']);
         Route::apiResource('matches', MatchesController::class);
+        
+        // Players routes with team management
         Route::apiResource('players', PlayersController::class);
+        Route::post('players/{id}/teams', [PlayersController::class, 'addToTeam']);
+        Route::delete('players/{id}/teams', [PlayersController::class, 'removeFromTeam']);
+        Route::get('players/{id}/teams', [PlayersController::class, 'getTeams']);
+        
+        // Player-Team routes
+        Route::apiResource('player-teams', PlayerTeamController::class);
+        Route::post('player-teams/bulk-add', [PlayerTeamController::class, 'bulkAdd']);
+        Route::post('player-teams/bulk-remove', [PlayerTeamController::class, 'bulkRemove']);
+        Route::post('player-teams/bulk-update-status', [PlayerTeamController::class, 'bulkUpdateStatus']);
+        Route::post('player-teams/{id}/accept', [PlayerTeamController::class, 'accept']);
+        Route::post('player-teams/{id}/refuse', [PlayerTeamController::class, 'refuse']);
+        
         Route::apiResource('stages', StagesController::class);
         Route::apiResource('teams', TeamsController::class);
         

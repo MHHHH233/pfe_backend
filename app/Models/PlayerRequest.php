@@ -16,10 +16,15 @@ class PlayerRequest extends Model
     const STATUS_REJECTED = 'rejected';
     const STATUS_EXPIRED = 'expired';
     const STATUS_CANCELLED = 'cancelled';
+    
+    const TYPE_MATCH = 'match';
+    const TYPE_TEAM = 'team';
 
     protected $fillable = [
         'sender',
         'receiver',
+        'team_id',
+        'request_type',
         'match_date',
         'starting_time',
         'message',
@@ -52,6 +57,11 @@ class PlayerRequest extends Model
     {
         return $this->belongsTo(Players::class, 'receiver', 'id_player');
     }
+    
+    public function team()
+    {
+        return $this->belongsTo(Teams::class, 'team_id', 'id_teams');
+    }
 
     // Scopes
     public function scopeActive($query)
@@ -59,12 +69,22 @@ class PlayerRequest extends Model
         return $query->where('status', self::STATUS_PENDING)
                     ->where('expires_at', '>', Carbon::now());
     }
+    
+    public function scopeTeamInvites($query)
+    {
+        return $query->where('request_type', self::TYPE_TEAM);
+    }
+    
+    public function scopeMatchInvites($query)
+    {
+        return $query->where('request_type', self::TYPE_MATCH);
+    }
 
     // Methods
     public function isExpired(): bool
     {
         return $this->expires_at->isPast() || 
-               $this->match_date->isPast() || 
+               ($this->request_type === self::TYPE_MATCH && $this->match_date->isPast()) || 
                $this->status === self::STATUS_EXPIRED;
     }
 
@@ -85,6 +105,12 @@ class PlayerRequest extends Model
             $receiver = Players::find($this->receiver);
             $receiver->increment('invites_accepted');
             $receiver->increment('total_invites');
+            
+            // If this is a team invitation, add the player to the team
+            if ($this->request_type === self::TYPE_TEAM && $this->team_id) {
+                $receiver->teams()->attach($this->team_id);
+            }
+            
             return true;
         }
         return false;

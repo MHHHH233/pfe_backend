@@ -45,7 +45,7 @@ class TeamsController extends Controller
 
         if ($request->has('my_teams')) {
             // Show only teams where user is captain or member
-            $query->where('id_captain', $request->user()->id_player)
+            $query->where('capitain', $request->user()->id_player)
                   ->orWhereHas('members', function($q) use ($request) {
                       $q->where('id_player', $request->user()->id_player);
                   });
@@ -73,16 +73,34 @@ class TeamsController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'team_name' => 'required|string|max:100|unique:teams,team_name',
-                'description' => 'nullable|string',
-                'logo' => 'nullable|file|image|mimes:jpeg,png,jpg|max:2048'
+                'capitain' => 'required|exists:compte,id_compte',
+                'starting_time' => 'nullable|date',
+                'finishing_time' => 'nullable|date',
+                'misses' => 'nullable|integer',
+                'invites_accepted' => 'nullable|integer',
+                'invites_refused' => 'nullable|integer',
+                'total_invites' => 'nullable|integer'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
+        
+        // Check if the captain already has a team
+        $capitainId = $validatedData['capitain'];
+        $existingTeam = Teams::where('capitain', $capitainId)->first();
+        
+        if ($existingTeam) {
+            return response()->json([
+                'error' => true,
+                'message' => 'This player is already a captain of another team'
+            ], 400);
+        }
 
         try {
-            $validatedData['id_captain'] = $request->user()->id_player;
+            if (!isset($validatedData['capitain'])) {
+                $validatedData['capitain'] = $request->user()->id_compte;
+            }
+            
             $validatedData['rating'] = 0;
             $validatedData['total_matches'] = 0;
 
@@ -112,16 +130,20 @@ class TeamsController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'team_name' => 'required|string|max:100|unique:teams,team_name,' . $id . ',id_teams',
-                'description' => 'nullable|string',
-                'logo' => 'nullable|file|image|mimes:jpeg,png,jpg|max:2048'
+                'capitain' => 'nullable|exists:compte,id_compte',
+                'starting_time' => 'nullable|date',
+                'finishing_time' => 'nullable|date',
+                'misses' => 'nullable|integer',
+                'invites_accepted' => 'nullable|integer',
+                'invites_refused' => 'nullable|integer',
+                'total_invites' => 'nullable|integer'
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
         }
 
         $team = Teams::where('id_teams', $id)
-            ->where('id_captain', $request->user()->id_player)
+            ->where('capitain', $request->user()->id_compte)
             ->first();
 
         if (!$team) {
@@ -199,7 +221,7 @@ class TeamsController extends Controller
         }
 
         try {
-            if ($team->id_captain === request()->user()->id_player) {
+            if ($team->capitain === request()->user()->id_player) {
                 return response()->json([
                     'error' => true,
                     'message' => 'Team captain cannot leave the team'
@@ -255,5 +277,52 @@ class TeamsController extends Controller
         } else {
             $query->orderBy('rating', 'desc');
         }
+    }
+
+    /**
+     * Display the specified team.
+     *
+     * @param Request $request
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function show(Request $request, $id)
+    {
+        try {
+            $request->validate([
+                'include' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) {
+                        $validIncludes = ['captain', 'members', 'ratings'];
+                        $includes = explode(',', $value);
+                        foreach ($includes as $include) {
+                            if (!in_array($include, $validIncludes)) {
+                                $fail('The selected ' . $attribute . ' is invalid.');
+                            }
+                        }
+                    },
+                ],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
+
+        $query = Teams::where('id_teams', $id);
+
+        if ($request->has('include')) {
+            $includes = explode(',', $request->input('include'));
+            $query->with($includes);
+        }
+
+        $team = $query->first();
+
+        if (!$team) {
+            return response()->json([
+                'message' => 'Team not found'
+            ], 404);
+        }
+
+        return new TeamsResource($team);
     }
 } 

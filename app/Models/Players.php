@@ -37,4 +37,36 @@ class Players extends Model
     {
         return $this->belongsToMany(Teams::class, 'player_team', 'id_player', 'id_teams');
     }
+    
+    public function sentRequests()
+    {
+        return $this->hasMany(PlayerRequest::class, 'sender', 'id_player');
+    }
+    
+    public function receivedRequests()
+    {
+        return $this->hasMany(PlayerRequest::class, 'receiver', 'id_player');
+    }
+    
+    /**
+     * Get player statistics.
+     * This is a virtual relationship that returns player stats.
+     */
+    public function stats()
+    {
+        // If you have a dedicated PlayerStats model, you could use:
+        // return $this->hasOne(PlayerStats::class, 'id_player');
+        
+        // For now, we'll use a virtual relationship that returns computed stats
+        return $this->hasOne(Players::class, 'id_player')
+            ->select([
+                'id_player',
+                'rating',
+                'total_matches',
+                'misses',
+                'invites_accepted',
+                'invites_refused',
+                'total_invites'
+            ]);
+    }
 } 

@@ -22,7 +22,7 @@ class CompteController extends Controller
         try {
             $user = $request->user();
             
-            return new CompteResource($user->load(['player', 'reservations', 'reviews']));
+            return new CompteResource($user->load(['player.sentRequests', 'player.receivedRequests', 'reservations', 'reviews']));
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to fetch profile',

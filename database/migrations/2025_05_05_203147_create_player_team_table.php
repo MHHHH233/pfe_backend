@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->unsignedInteger('id_player');
             $table->unsignedInteger('id_teams');
+            $table->enum('status', ['pending', 'accepted', 'refused'])->default('pending');
             $table->timestamps();
 
             $table->foreign('id_player')

@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\User\V1\AnalyticsController;
 use App\Http\Controllers\Api\User\V1\AcademieController;
 use App\Http\Controllers\Api\User\V1\AcademieMembersController;
 use App\Http\Controllers\Api\User\V1\ReviewsController;
+use App\Http\Controllers\Api\User\V1\PlayerTeamController;
 
 Route::prefix('user')->as('user.')->group(function () {
     Route::prefix('v1')->as('v1.')->group(function () {
@@ -49,13 +50,28 @@ Route::prefix('user')->as('user.')->group(function () {
         Route::apiResource('ratings', RatingController::class);
         Route::apiResource('player-requests', PlayerRequestController::class);
         Route::apiResource('matches', MatchesController::class);
+        
+        // Players routes
         Route::apiResource('players', PlayersController::class);
+        Route::post('players/{id}/teams', [PlayersController::class, 'addToTeam']);
+        Route::delete('players/{id}/teams', [PlayersController::class, 'removeFromTeam']);
+        Route::get('players/{id}/teams', [PlayersController::class, 'getTeams']);
+        
+        // Player-Team routes
+        Route::apiResource('player-teams', PlayerTeamController::class);
+        Route::post('player-teams/{id}/invite', [PlayerTeamController::class, 'invite']);
+        Route::post('player-teams/{id}/accept', [PlayerTeamController::class, 'acceptInvitation']);
+        Route::post('player-teams/{id}/refuse', [PlayerTeamController::class, 'refuseInvitation']);
+        Route::post('player-teams/{id}/process', [PlayerTeamController::class, 'processJoinRequest']);
+        Route::get('pending-invitations', [PlayerTeamController::class, 'getPendingInvitations']);
+        Route::get('pending-join-requests', [PlayerTeamController::class, 'getPendingJoinRequests']);
+        
         Route::apiResource('stages', StagesController::class);
         
         
         Route::apiResource('teams', TeamsController::class);
-        Route::post('teams/join', [TournoiTeamsController::class],'join');        
-        Route::post('teams/leave', [TournoiTeamsController::class],'leave');        
+        Route::post('teams/join', [TournoiTeamsController::class, 'join']);        
+        Route::post('teams/leave', [TournoiTeamsController::class, 'leave']);        
 
         
         // Add routes for each controller
@@ -72,9 +88,9 @@ Route::prefix('user')->as('user.')->group(function () {
         Route::patch('academie-subscribe/{academieId}/plan', [AcademieMembersController::class, 'updatePlan']);
 
         Route::apiResource('tournoi-teams', TournoiTeamsController::class);        
-        Route::get('tournoiStats', [TournoiTeamsController::class],'getStats');        
-        Route::post('tournoi-teams/withdraw', [TournoiTeamsController::class],'withdraw');        
-        Route::post('tournoi-teams/register', [TournoiTeamsController::class],'register');        
+        Route::get('tournoiStats/{id_tournoi}/{id_teams}', [TournoiTeamsController::class, 'getStats']);        
+        Route::post('tournoi-teams/withdraw/{id_tournoi}/{id_teams}', [TournoiTeamsController::class, 'withdraw']);        
+        Route::post('tournoi-teams/register', [TournoiTeamsController::class, 'register']);
         
         Route::apiResource('reviews', ReviewsController::class)->only(['index', 'store', 'destroy']);
                 
