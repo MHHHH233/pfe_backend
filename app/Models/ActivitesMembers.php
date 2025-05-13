@@ -25,4 +25,10 @@ class ActivitesMembers extends Model
     {
         return $this->belongsTo(AcademieActivites::class, 'id_activites');
     }
+    
+    // Add alias for 'activite' to maintain compatibility with existing code
+    public function activite()
+    {
+        return $this->activity();
+    }
 }

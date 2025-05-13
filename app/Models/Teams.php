@@ -34,6 +34,12 @@ class Teams extends Model
     
     public function members()
     {
-        return $this->belongsToMany(Players::class, 'player_team', 'id_teams', 'id_player');
+        return $this->belongsToMany(Players::class, 'player_team', 'id_teams', 'id_player')
+                    ->wherePivot('status', 'accepted');
+    }
+    
+    public function player_team()
+    {
+        return $this->hasMany(PlayerTeam::class, 'id_teams');
     }
 } 

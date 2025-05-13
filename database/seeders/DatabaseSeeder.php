@@ -32,6 +32,8 @@ class DatabaseSeeder extends Seeder
             PlayerRequestSeeder::class,   // This should come after PlayersSeeder
             MatchesSeeder::class,        // Added Matches seeder
             ReportedBugSeeder::class,
+            SocialMediaSeeder::class,    // Added Social Media seeder
+            ContactSeeder::class,        // Added Contact seeder
         ]);
     }
 }

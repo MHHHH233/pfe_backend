@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use App\Http\Resources\User\V1\CompteResource;
+use Illuminate\Support\Facades\DB;
 
 class CompteController extends Controller
 {
@@ -275,6 +276,112 @@ class CompteController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to mark notification as read',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Delete user account.
+     *
+     * @param Request $request
+     */
+    public function deleteAccount(Request $request): JsonResponse
+    {
+        try {
+            $validatedData = $request->validate([
+                'password' => 'required|string',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
+
+        try {
+            $user = $request->user();
+
+            // Verify password before deletion
+            if (!Hash::check($validatedData['password'], $user->password)) {
+                return response()->json([
+                    'error' => true,
+                    'message' => 'Password is incorrect'
+                ], 400);
+            }
+
+            // Begin transaction to ensure all related data is deleted properly
+            DB::beginTransaction();
+            
+            // Load the player relationship
+            $player = $user->player;
+            
+            if ($player) {
+                // Delete player's sent friend requests
+                if ($player->sentRequests()->exists()) {
+                    $player->sentRequests()->delete();
+                }
+                
+                // Delete player's received friend requests
+                if ($player->receivedRequests()->exists()) {
+                    $player->receivedRequests()->delete();
+                }
+                
+                // Remove player from teams
+                if ($player->teams()->exists()) {
+                    $player->teams()->detach();
+                }
+                
+                // Remove player from academies
+                if ($player->academies()->exists()) {
+                    $player->academies()->detach();
+                }
+                
+                // Delete player ratings/reviews
+                if ($player->ratings()->exists()) {
+                    $player->ratings()->delete();
+                }
+                
+                // Delete the player record
+                $player->delete();
+            }
+            
+            // Delete user's reservations
+            if ($user->reservations()->exists()) {
+                $user->reservations()->delete();
+            }
+            
+            // Delete user's reviews
+            if ($user->reviews()->exists()) {
+                $user->reviews()->delete();
+            }
+            
+            // Delete user's notifications
+            if ($user->notifications()->exists()) {
+                $user->notifications()->delete();
+            }
+            
+            // Delete user's reported bugs
+            if ($user->reportedBugs()->exists()) {
+                $user->reportedBugs()->delete();
+            }
+            
+            // Revoke all tokens
+            $user->tokens()->delete();
+            
+            // Finally delete the user account
+            $user->delete();
+            
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Account and all related data deleted successfully'
+            ]);
+
+        } catch (\Exception $e) {
+            // Rollback if anything fails
+            DB::rollBack();
+            
+            return response()->json([
+                'message' => 'Failed to delete account',
                 'error' => $e->getMessage()
             ], 500);
         }

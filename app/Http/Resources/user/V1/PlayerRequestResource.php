@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\user\V1\PlayersResource;
 use App\Http\Resources\user\V1\TeamsResource;
+use App\Models\Players;
 
 class PlayerRequestResource extends JsonResource
 {
@@ -31,15 +32,9 @@ class PlayerRequestResource extends JsonResource
             'updated_at' => $this->updated_at,
         ];
 
-        // Include sender relationship if loaded
-        if ($this->relationLoaded('sender')) {
-            $data['sender_details'] = new PlayersResource($this->sender);
-        }
-
-        // Include receiver relationship if loaded
-        if ($this->relationLoaded('receiver')) {
-            $data['receiver_details'] = new PlayersResource($this->receiver);
-        }
+        // Always include sender and receiver details
+        $data['sender_details'] = new PlayersResource($this->sender);
+        $data['receiver_details'] = new PlayersResource($this->receiver);
         
         // Include team relationship if loaded
         if ($this->relationLoaded('team')) {

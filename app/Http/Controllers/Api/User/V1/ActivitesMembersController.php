@@ -22,7 +22,7 @@ class ActivitesMembersController extends Controller
                     'nullable',
                     'string',
                     function ($attribute, $value, $fail) {
-                        $validIncludes = ['activite', 'member'];
+                        $validIncludes = ['activity', 'activite', 'member'];
                         $includes = explode(',', $value);
                         foreach ($includes as $include) {
                             if (!in_array($include, $validIncludes)) {
@@ -64,7 +64,7 @@ class ActivitesMembersController extends Controller
                     'nullable',
                     'string',
                     function ($attribute, $value, $fail) {
-                        $validIncludes = ['activite', 'member'];
+                        $validIncludes = ['activity', 'activite', 'member'];
                         $includes = explode(',', $value);
                         foreach ($includes as $include) {
                             if (!in_array($include, $validIncludes)) {
@@ -205,5 +205,56 @@ class ActivitesMembersController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    public function getActivitesIn(Request $request, $id_member): JsonResponse
+    {
+        try {
+            $validatedData = $request->validate([
+                'include' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) {
+                        $validIncludes = ['activity', 'activite', 'member'];
+                        $includes = explode(',', $value);
+                        foreach ($includes as $include) {
+                            if (!in_array($include, $validIncludes)) {
+                                $fail('The selected ' . $attribute . ' is invalid.');
+                            }
+                        }
+                    },
+                ],
+                'paginationSize' => 'nullable|integer|min:1',
+                'sort_by' => 'nullable|string|in:date_joined',
+                'sort_order' => 'nullable|string|in:asc,desc',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
+
+        // Validate the member exists
+        $memberExists = AcademieMembers::where('id_member', $id_member)->exists();
+        if (!$memberExists) {
+            return response()->json(['error' => 'Member not found'], 404);
+        }
+
+        $query = ActivitesMembers::where('id_member_ref', $id_member);
+
+        // Apply optional sorting
+        $this->applySorting($request, $query);
+
+        // Apply includes if specified
+        if ($request->has('include')) {
+            $includes = explode(',', $request->input('include'));
+            $query->with($includes);
+        }
+
+        $paginationSize = $request->input('paginationSize', 10);
+        $activities = $query->paginate($paginationSize);
+
+        return response()->json([
+            'message' => 'Member activities retrieved successfully',
+            'data' => ActivitesMembersResource::collection($activities)
+        ], 200);
     }
 } 

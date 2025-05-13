@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\Admin\V1\AcademieController;
 use App\Http\Controllers\Api\Admin\V1\AcademieMembersController;
 use App\Http\Controllers\Api\Admin\V1\ReviewsController;
 use App\Http\Controllers\Api\Admin\V1\PlayerTeamController;
+use App\Http\Controllers\Api\Admin\V1\SocialMediaController;
+use App\Http\Controllers\Api\Admin\V1\ContactController;
 use App\Http\Resources\Admin\V1\PlayerRequestResource;
 
 Route::prefix('admin')->as('admin.')->group(function () {
@@ -42,6 +44,16 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::apiResource('reviews', ReviewsController::class);
         Route::patch('reviews/{id}/status', [ReviewsController::class, 'updateStatus']);
         Route::apiResource('ratings', RatingController::class);
+        
+        // Social Media routes
+        Route::get('social-media', [SocialMediaController::class, 'index']);
+        Route::post('social-media', [SocialMediaController::class, 'update']);
+        
+        // Contact routes
+        Route::get('contacts', [ContactController::class, 'index']);
+        Route::get('contacts/{id}', [ContactController::class, 'show']);
+        Route::delete('contacts/{id}', [ContactController::class, 'destroy']);
+        
         Route::apiResource('player-requests', PlayerRequestController::class);
         Route::patch('player-requests/{id}/status', [PlayerRequestController::class, 'updateStatus']);
         Route::patch('player-requests/{id}/reject', [PlayerRequestController::class, 'reject']);

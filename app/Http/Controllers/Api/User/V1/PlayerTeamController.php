@@ -13,6 +13,7 @@ use App\Http\Resources\User\V1\PlayerTeamResource;
 use App\Models\PlayerRequest;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PlayerTeamController extends Controller
 {
@@ -92,16 +93,28 @@ class PlayerTeamController extends Controller
             return response()->json(['error' => $e->errors()], 400);
         }
 
-        // Check if player exists and is the authenticated user
+        // Check if player exists - removed authentication check
         $player = Players::find($validatedData['player_id']);
-        if (!$player || $player->id_compte != $request->user()->id_compte) {
-            return response()->json(['message' => 'Unauthorized or player not found'], 403);
+        if (!$player) {
+            return response()->json(['message' => 'Player not found'], 404);
         }
 
         // Check if team exists
         $team = Teams::find($validatedData['team_id']);
         if (!$team) {
             return response()->json(['message' => 'Team not found'], 404);
+        }
+
+        // Check if player is already in any team
+        $existingTeam = PlayerTeam::where('id_player', $validatedData['player_id'])
+            ->where('status', PlayerTeam::STATUS_ACCEPTED)
+            ->first();
+
+        if ($existingTeam) {
+            return response()->json([
+                'error' => true,
+                'message' => 'Player is already a member of another team'
+            ], 409);
         }
 
         // Check if the relationship already exists
@@ -538,5 +551,155 @@ class PlayerTeamController extends Controller
         $joinRequests = $query->paginate(10);
 
         return PlayerTeamResource::collection($joinRequests);
+    }
+
+    /**
+     * Get a specific member of a team
+     *
+     * @param int $id Team ID
+     * @param int $id_player Player ID
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getMember($id, $id_player, Request $request): JsonResponse
+    {
+        // Find the player-team relationship
+        $playerTeam = PlayerTeam::where('id_teams', $id)
+            ->where('id_player', $id_player)
+            ->where('status', PlayerTeam::STATUS_ACCEPTED)
+            ->with(['player', 'team'])
+            ->first();
+
+        if (!$playerTeam) {
+            return response()->json(['message' => 'Team member not found'], 404);
+        }
+
+        // Check if the authenticated user has permission to view this information
+        $authPlayer = Players::where('id_compte', $request->user()->id_compte)->first();
+        
+        // Allow access if the user is:
+        // 1. The team captain
+        // 2. The member being viewed
+        // 3. Another team member
+        $isTeamCaptain = $playerTeam->team->capitain === $authPlayer->id_player;
+        $isRequestedMember = $id_player === $authPlayer->id_player;
+        $isTeamMember = PlayerTeam::where('id_teams', $id)
+            ->where('id_player', $authPlayer->id_player)
+            ->where('status', PlayerTeam::STATUS_ACCEPTED)
+            ->exists();
+
+        if (!$isTeamCaptain && !$isRequestedMember && !$isTeamMember) {
+            return response()->json(['message' => 'Unauthorized to view this team member'], 403);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => new PlayerTeamResource($playerTeam)
+        ]);
+    }
+
+    /**
+     * Remove a member from a team
+     *
+     * @param int $id Team ID
+     * @param int $id_player Player ID to remove
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function removeMember($id, $id_player, Request $request): JsonResponse
+    {
+        try {
+            // Validate the request
+            $validatedData = $request->validate([
+                'captain_id' => 'required|exists:players,id_player'
+            ]);
+
+            // Find the player-team relationship
+            $playerTeam = PlayerTeam::where('id_teams', $id)
+                ->where('id_player', $id_player)
+                ->where('status', PlayerTeam::STATUS_ACCEPTED)
+                ->with(['team'])
+                ->first();
+
+            if (!$playerTeam) {
+                return response()->json(['message' => 'Team member not found'], 404);
+            }
+
+            // Get the team to check captain
+            $team = Teams::find($id);
+            if (!$team) {
+                return response()->json(['message' => 'Team not found'], 404);
+            }
+
+            // Get all player profiles associated with the authenticated user's account
+            $authPlayerIds = Players::where('id_compte', $request->user()->id_compte)
+                ->pluck('id_player')
+                ->toArray();
+
+            if (empty($authPlayerIds)) {
+                return response()->json(['message' => 'Player profile not found'], 404);
+            }
+
+            // Verify that the provided captain ID matches the team's captain
+            if ($team->capitain != $validatedData['captain_id']) {
+                return response()->json([
+                    'message' => 'Invalid captain ID provided',
+                    'debug' => [
+                        'provided_captain_id' => $validatedData['captain_id'],
+                        'actual_captain_id' => $team->capitain
+                    ]
+                ], 400);
+            }
+
+            // Only allow team captain or the member themselves to remove the member
+            $isTeamCaptain = in_array($validatedData['captain_id'], $authPlayerIds);
+            $isSelfRemoval = in_array($id_player, $authPlayerIds);
+
+            // Debug information
+            Log::info('Remove Member Authorization Check', [
+                'auth_player_ids' => $authPlayerIds,
+                'team_captain_id' => $team->capitain,
+                'provided_captain_id' => $validatedData['captain_id'],
+                'is_captain' => $isTeamCaptain,
+                'target_player_id' => $id_player,
+                'is_self_removal' => $isSelfRemoval
+            ]);
+
+            if (!$isTeamCaptain && !$isSelfRemoval) {
+                return response()->json([
+                    'message' => 'Unauthorized to remove team members',
+                    'debug' => [
+                        'is_captain' => $isTeamCaptain,
+                        'is_self_removal' => $isSelfRemoval,
+                        'your_ids' => $authPlayerIds,
+                        'captain_id' => $team->capitain,
+                        'provided_captain_id' => $validatedData['captain_id']
+                    ]
+                ], 403);
+            }
+
+            // Cannot remove the team captain
+            if ($team->capitain == $id_player) {
+                return response()->json([
+                    'message' => 'Cannot remove the team captain. Transfer captaincy first.'
+                ], 400);
+            }
+
+            try {
+                $playerTeam->delete();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Team member removed successfully'
+                ]);
+            } catch (\Exception $e) {
+                return response()->json([
+                    'message' => 'Failed to remove team member',
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
     }
 } 

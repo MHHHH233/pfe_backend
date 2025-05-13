@@ -166,6 +166,148 @@ class PlayerRequestController extends Controller
         }
     }
 
+    /**
+     * Accept a player request
+     * 
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function accept($id): JsonResponse
+    {
+        $playerRequest = PlayerRequest::find($id);
+
+        if (!$playerRequest) {
+            return response()->json(['message' => 'Player Request not found'], 404);
+        }
+
+        if ($playerRequest->status !== PlayerRequest::STATUS_PENDING) {
+            return response()->json(['message' => 'This request cannot be accepted'], 400);
+        }
+
+        try {
+            if ($playerRequest->accept()) {
+                return response()->json([
+                    'message' => 'Player Request accepted successfully',
+                    'data' => new PlayerRequestResource($playerRequest)
+                ], 200);
+            } else {
+                return response()->json([
+                    'message' => 'Failed to accept request, it may be expired'
+                ], 400);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to accept Player Request',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Cancel a player request
+     * 
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function cancel($id): JsonResponse
+    {
+        $playerRequest = PlayerRequest::find($id);
+
+        if (!$playerRequest) {
+            return response()->json(['message' => 'Player Request not found'], 404);
+        }
+
+        if ($playerRequest->status !== PlayerRequest::STATUS_PENDING) {
+            return response()->json(['message' => 'This request cannot be cancelled'], 400);
+        }
+
+        try {
+            $playerRequest->status = PlayerRequest::STATUS_CANCELLED;
+            $playerRequest->save();
+            
+            return response()->json([
+                'message' => 'Player Request cancelled successfully',
+                'data' => new PlayerRequestResource($playerRequest)
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to cancel Player Request',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get player requests (sent or received)
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+     */
+    public function getPlayerRequests(Request $request)
+    {
+        try {
+            $validatedData = $request->validate([
+                'player_id' => 'required|integer|exists:players,id_player',
+                'type' => 'nullable|string|in:sent,received,all',
+                'status' => 'nullable|string|in:pending,accepted,rejected,expired,cancelled,all',
+                'request_type' => 'nullable|string|in:match,team,all',
+                'include' => 'nullable|string',
+                'paginationSize' => 'nullable|integer|min:1'
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 400);
+        }
+
+        $query = PlayerRequest::query();
+        $playerId = $request->input('player_id');
+        $type = $request->input('type', 'all');
+        
+        // Filter by player (sender or receiver)
+        if ($type === 'sent') {
+            $query->where('sender', $playerId);
+        } elseif ($type === 'received') {
+            $query->where('receiver', $playerId);
+        } else {
+            $query->where(function($q) use ($playerId) {
+                $q->where('sender', $playerId)
+                  ->orWhere('receiver', $playerId);
+            });
+        }
+        
+        // Apply other filters
+        if ($request->has('status') && $request->input('status') !== 'all') {
+            $query->where('status', $request->input('status'));
+        }
+        
+        if ($request->has('request_type') && $request->input('request_type') !== 'all') {
+            $query->where('request_type', $request->input('request_type'));
+        }
+        
+        // Always include these relationships to avoid the error
+        $includes = ['sender', 'receiver'];
+        
+        // Include additional relationships if specified
+        if ($request->has('include')) {
+            $requestedIncludes = explode(',', $request->input('include'));
+            $validIncludes = ['sender', 'receiver', 'team', 'sender.compte', 'receiver.compte'];
+            $filteredIncludes = array_intersect($requestedIncludes, $validIncludes);
+            
+            // Merge with our required includes
+            $includes = array_unique(array_merge($includes, $filteredIncludes));
+        }
+        
+        $query->with($includes);
+        
+        // Apply sorting
+        $query->orderBy('created_at', 'desc');
+        
+        // Paginate results
+        $paginationSize = $request->input('paginationSize', 10);
+        $requests = $query->paginate($paginationSize);
+        
+        return PlayerRequestResource::collection($requests);
+    }
+
     protected function applyFilters(Request $request, $query)
     {
         if ($request->has('date')) {

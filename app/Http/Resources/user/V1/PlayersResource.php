@@ -5,6 +5,7 @@ namespace App\Http\Resources\user\V1;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use App\Http\Resources\user\V1\TeamsResource;
+use App\Models\Players;
 
 class PlayersResource extends JsonResource
 {
@@ -15,6 +16,19 @@ class PlayersResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // If resource is an integer (ID), fetch the player model
+        if (is_numeric($this->resource)) {
+            $player = Players::find($this->resource);
+            if (!$player) {
+                return [
+                    'id' => $this->resource,
+                    'error' => 'Player not found'
+                ];
+            }
+            // Replace the resource with the actual model
+            $this->resource = $player;
+        }
+
         $data = [
             'id' => $this->id_player,
             'id_compte' => $this->id_compte,

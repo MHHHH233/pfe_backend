@@ -16,7 +16,7 @@ class TerrainController extends Controller
         try {
             $request->validate([
                 'paginationSize' => 'nullable|integer|min:1',
-                'sort_by' => 'nullable|string|in:nom_terrain,capacite,type',
+                'sort_by' => 'nullable|string|in:nom_terrain,capacite,type,prix',
                 'sort_order' => 'nullable|string|in:asc,desc',
                 'search' => 'nullable|string',
                 'type' => 'nullable|string|in:indoor,outdoor',
@@ -74,7 +74,7 @@ class TerrainController extends Controller
         $sortBy = $request->input('sort_by', 'id_terrain');
         $sortOrder = $request->input('sort_order', 'desc');
 
-        $allowedSortBy = ['nom_terrain', 'capacite', 'type'];
+        $allowedSortBy = ['nom_terrain', 'capacite', 'type', 'prix'];
         $allowedSortOrder = ['asc', 'desc'];
 
         if (in_array($sortBy, $allowedSortBy) && in_array($sortOrder, $allowedSortOrder)) {

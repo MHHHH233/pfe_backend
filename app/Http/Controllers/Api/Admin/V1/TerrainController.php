@@ -80,7 +80,7 @@ class TerrainController extends Controller
                 $image = $request->file('image');
                 $imageName = time() . '_' . $image->getClientOriginalName();
                 $image->move(public_path($this->imageFolder), $imageName);
-                $validatedData['image_path'] = $this->imageFolder . '/' . $imageName;
+                $validatedData['image_path'] = "http://127.0.0.1:8000/" . $this->imageFolder . '/' . $imageName;
             }
 
             $terrain = Terrain::create($validatedData);
@@ -127,7 +127,7 @@ class TerrainController extends Controller
                     $image = $request->file('image');
                     $imageName = time() . '_' . $image->getClientOriginalName();
                     $image->move(public_path($this->imageFolder), $imageName);
-                    $validatedData['image_path'] = $this->imageFolder . '/' . $imageName;
+                    $validatedData['image_path'] = "http://127.0.0.1:8000/" . $this->imageFolder . '/' . $imageName;
                 }
 
                 $terrain->update($validatedData);
