@@ -24,9 +24,9 @@ class AuthController extends Controller
         if (count($files) === 0) {
             return 'images/default_pfp/default.png';
         }
-        
+        $baseUrl = 'http://127.0.0.1:8000/';
         $randomFile = $files[array_rand($files)];
-        return 'images/default_pfp/' . $randomFile->getFilename();
+        return $baseUrl . 'images/default_pfp/' . $randomFile->getFilename();
     }
 
     public function register(Request $request)
@@ -93,6 +93,7 @@ class AuthController extends Controller
                 ],
                 401,
             );
+            
         }
         $token = $user->createToken('auth_token')->plainTextToken;
         $roles = $user->getRoleNames();

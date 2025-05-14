@@ -25,6 +25,8 @@ class Compte extends Authenticatable
         'role',
         'pfp',
         'telephone',
+        'google_id',
+        'google_avatar',
     ];
 
     public function player()

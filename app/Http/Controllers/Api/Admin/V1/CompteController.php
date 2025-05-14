@@ -78,9 +78,9 @@ class CompteController extends Controller
     {
         $path = public_path('images/default_pfp');
         $files = File::files($path);
-        
+        $baseUrl = 'http://127.0.0.1:8000/';
         if (count($files) === 0) {
-            return 'images/default_pfp/default.png';
+            return $baseUrl . 'images/default_pfp/default.png';
         }
         
         $randomFile = $files[array_rand($files)];

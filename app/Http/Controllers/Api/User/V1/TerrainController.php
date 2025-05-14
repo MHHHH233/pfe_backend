@@ -11,6 +11,8 @@ use App\Http\Resources\user\V1\TerrainResource;
 
 class TerrainController extends Controller
 {
+    
+
     public function index(Request $request)
     {
         try {
@@ -35,6 +37,13 @@ class TerrainController extends Controller
         $paginationSize = $request->input('paginationSize', 10);
         $terrains = $query->paginate($paginationSize);
 
+        // Process images to add base URL if needed
+        foreach ($terrains as $terrain) {
+            if ($terrain->image_path && !str_starts_with($terrain->image_path, 'http')) {
+                $terrain->image_path = $terrain->image_path;
+            }
+        }
+
         return TerrainResource::collection($terrains);
     }
 
@@ -44,6 +53,11 @@ class TerrainController extends Controller
 
         if (!$terrain) {
             return response()->json(['message' => 'Terrain not found'], 404);
+        }
+
+        // Add base URL to image_path if it doesn't start with http
+        if ($terrain->image_path && !str_starts_with($terrain->image_path, 'http')) {
+            $terrain->image_path =$terrain->image_path;
         }
 
         return new TerrainResource($terrain);

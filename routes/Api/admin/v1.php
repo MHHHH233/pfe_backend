@@ -46,8 +46,8 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::apiResource('ratings', RatingController::class);
         
         // Social Media routes
-        Route::get('social-media', [SocialMediaController::class, 'index']);
-        Route::post('social-media', [SocialMediaController::class, 'update']);
+        Route::apiResource('social-media', SocialMediaController::class);
+        Route::put('social-media', [SocialMediaController::class, 'update']);
         
         // Contact routes
         Route::get('contacts', [ContactController::class, 'index']);
@@ -90,5 +90,7 @@ Route::prefix('admin')->as('admin.')->group(function () {
         
         
         Route::get('analytics', [AnalyticsController::class,'getAnalytics']);
+        Route::get('notifications', [AnalyticsController::class,'getNotificationAnalytics']);
+        Route::patch('notifications/mark-all-read', [AnalyticsController::class, 'markAllNotificationsAsRead']);
     });
 });

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\File;
 class TerrainController extends Controller
 {
     private $imageFolder = 'images/terrains';
-
+    private $baseUrl = 'http://127.0.0.1:8000/';
     public function __construct()
     {
         // Create the images/terrains directory if it doesn't exist
@@ -80,7 +80,7 @@ class TerrainController extends Controller
                 $image = $request->file('image');
                 $imageName = time() . '_' . $image->getClientOriginalName();
                 $image->move(public_path($this->imageFolder), $imageName);
-                $validatedData['image_path'] = "http://127.0.0.1:8000/" . $this->imageFolder . '/' . $imageName;
+                $validatedData['image_path'] = $this->baseUrl . $this->imageFolder . '/' . $imageName;
             }
 
             $terrain = Terrain::create($validatedData);
@@ -127,7 +127,7 @@ class TerrainController extends Controller
                     $image = $request->file('image');
                     $imageName = time() . '_' . $image->getClientOriginalName();
                     $image->move(public_path($this->imageFolder), $imageName);
-                    $validatedData['image_path'] = "http://127.0.0.1:8000/" . $this->imageFolder . '/' . $imageName;
+                    $validatedData['image_path'] = $this->baseUrl . $this->imageFolder . '/' . $imageName;
                 }
 
                 $terrain->update($validatedData);

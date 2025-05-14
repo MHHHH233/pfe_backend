@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\File;
 class AcademieCoachController extends Controller
 {
     private $imageFolder = 'images/coach';
+    private $baseUrl = 'http://127.0.0.1:8000/';
 
     public function __construct()
     {
@@ -124,7 +125,7 @@ class AcademieCoachController extends Controller
                 $image = $request->file('pfp');
                 $imageName = time() . '_' . $image->getClientOriginalName();
                 $image->move(public_path($this->imageFolder), $imageName);
-                $validatedData['pfp'] = $this->imageFolder . '/' . $imageName;
+                $validatedData['pfp'] = $this->baseUrl . $this->imageFolder . '/' . $imageName;
             }
 
             $coach = AcademieCoach::create($validatedData);
@@ -174,7 +175,7 @@ class AcademieCoachController extends Controller
                 $image = $request->file('pfp');
                 $imageName = time() . '_' . $image->getClientOriginalName();
                 $image->move(public_path($this->imageFolder), $imageName);
-                $validatedData['pfp'] = $this->imageFolder . '/' . $imageName;
+                $validatedData['pfp'] = $this->baseUrl . $this->imageFolder . '/' . $imageName;
             }
 
             $coach->update($validatedData);
