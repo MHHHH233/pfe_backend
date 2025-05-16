@@ -32,7 +32,7 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
             'age' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:compte',
@@ -50,7 +50,7 @@ class AuthController extends Controller
         }
 
         $user = Compte::create([
-            'name' => $request->name,
+            'nom' => $request->nom,
             'prenom' => $request->prenom,
             'age' => $request->age,
             'email' => $request->email,
