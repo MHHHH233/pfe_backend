@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\User\V1\ReviewsController;
 use App\Http\Controllers\Api\User\V1\PlayerTeamController;
 use App\Http\Controllers\Api\User\V1\SocialMediaController;
 use App\Http\Controllers\Api\User\V1\ContactController;
+use App\Http\Controllers\Api\User\V1\ChatbotController;
 
 Route::prefix('user')->as('user.')->group(function () {
     Route::prefix('v1')->as('v1.')->group(function () {
@@ -116,6 +117,13 @@ Route::prefix('user')->as('user.')->group(function () {
         Route::post('tournoi-teams/register', [TournoiTeamsController::class, 'register']);
         
         Route::apiResource('reviews', ReviewsController::class)->only(['index', 'store', 'destroy']);
+        
+        // Chatbot routes with rate limiting
+        Route::middleware('throttle:5,1')->group(function () {
+            Route::post('chatbot/send', [ChatbotController::class, 'sendMessage']);
+            Route::post('chatbot/clear', [ChatbotController::class, 'clearConversation']);
+            Route::get('chatbot/models', [ChatbotController::class, 'getAvailableModels']);
+        });
                 
     });
 });

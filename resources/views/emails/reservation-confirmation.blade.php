@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your New Account Details</title>
+    <title>Reservation Confirmation</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,32 +44,31 @@
             background-color: white;
             padding: 25px 20px;
         }
-        .credentials {
+        .reservation-details {
             background-color: #f8f8f8;
             padding: 15px;
             border-radius: 8px;
             border-left: 4px solid #07F468;
             margin: 15px 0;
         }
-        .credentials p {
+        .reservation-details p {
             margin: 8px 0;
             font-size: 15px;
         }
-        .credentials strong {
+        .reservation-details strong {
             color: #252525;
             font-weight: 600;
             display: inline-block;
-            width: 80px;
+            width: 140px;
         }
-        .reservation {
-            background-color: #f0f0f0;
-            padding: 10px 15px;
-            border-radius: 4px;
-            margin: 15px 0;
-            border-left: 3px solid #07F468;
-        }
-        .reservation p {
-            margin: 5px 0;
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            background-color: #07F468;
+            color: #252525;
         }
         .button {
             display: inline-block;
@@ -94,7 +93,7 @@
             .content {
                 padding: 20px 15px;
             }
-            .credentials strong {
+            .reservation-details strong {
                 width: 100%;
                 display: block;
                 margin-bottom: 5px;
@@ -106,31 +105,30 @@
     <div class="container">
         <div class="header">
             <h2 class="logo">TERRANA <span>FC</span></h2>
-            <h1>Welcome to Terrana FC</h1>
+            <h1>Reservation Confirmation</h1>
         </div>
         
         <div class="content">
             <p>Hello {{ $name }},</p>
             
-            <p>Thank you for your reservation. We've created an account for you to manage your bookings.</p>
+            <p>Your reservation has been confirmed successfully!</p>
             
-            <div class="reservation">
+            <div class="reservation-details">
                 <p><strong>Reservation Number:</strong> {{ $numRes }}</p>
+                <p><strong>Date:</strong> {{ $date }}</p>
+                <p><strong>Time:</strong> {{ $time }}</p>
+                <p><strong>Field/Court:</strong> {{ $terrain }}</p>
+                <p><strong>Status:</strong> <span class="status-badge">{{ $status }}</span></p>
             </div>
             
-            <div class="credentials">
-                <p><strong>Email:</strong> {{ $email }}</p>
-                <p><strong>Password:</strong> {{ $password }}</p>
-            </div>
+            <p>If you need to make any changes to your reservation, please contact us or log in to your account.</p>
             
-            <p>For security reasons, we recommend changing your password after your first login.</p>
-            
-            <a href="{{ url('/login') }}" class="button">Login Now</a>
+            <a href="{{ url('/login') }}" class="button">Manage Reservation</a>
         </div>
         
         <div class="footer">
             <p>&copy; {{ date('Y') }} Terrana FC. All rights reserved.</p>
-            <p>Contact: support@terranafc.com | +212 600-000000</p>
+            <p>Contact: info@terranafc.com | +212 600-000000</p>
         </div>
     </div>
 </body>

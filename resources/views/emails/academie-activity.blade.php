@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your New Account Details</title>
+    <title>New Academy Activity</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,32 +44,45 @@
             background-color: white;
             padding: 25px 20px;
         }
-        .credentials {
+        .activity-details {
             background-color: #f8f8f8;
             padding: 15px;
             border-radius: 8px;
             border-left: 4px solid #07F468;
             margin: 15px 0;
         }
-        .credentials p {
+        .activity-details h2 {
+            color: #252525;
+            margin-top: 0;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+        .activity-details p {
             margin: 8px 0;
             font-size: 15px;
         }
-        .credentials strong {
-            color: #252525;
-            font-weight: 600;
-            display: inline-block;
-            width: 80px;
-        }
-        .reservation {
-            background-color: #f0f0f0;
-            padding: 10px 15px;
-            border-radius: 4px;
+        .dates {
+            display: flex;
+            justify-content: space-between;
             margin: 15px 0;
-            border-left: 3px solid #07F468;
         }
-        .reservation p {
-            margin: 5px 0;
+        .date-badge {
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+            width: 45%;
+        }
+        .date-badge p {
+            margin: 0;
+            font-size: 13px;
+            color: #666;
+        }
+        .date-badge strong {
+            font-size: 16px;
+            display: block;
+            margin-top: 5px;
+            color: #252525;
         }
         .button {
             display: inline-block;
@@ -94,10 +107,12 @@
             .content {
                 padding: 20px 15px;
             }
-            .credentials strong {
+            .dates {
+                flex-direction: column;
+            }
+            .date-badge {
                 width: 100%;
-                display: block;
-                margin-bottom: 5px;
+                margin-bottom: 10px;
             }
         }
     </style>
@@ -106,31 +121,38 @@
     <div class="container">
         <div class="header">
             <h2 class="logo">TERRANA <span>FC</span></h2>
-            <h1>Welcome to Terrana FC</h1>
+            <h1>New Academy Activity</h1>
         </div>
         
         <div class="content">
             <p>Hello {{ $name }},</p>
             
-            <p>Thank you for your reservation. We've created an account for you to manage your bookings.</p>
+            <p>We're excited to announce a new activity at our academy:</p>
             
-            <div class="reservation">
-                <p><strong>Reservation Number:</strong> {{ $numRes }}</p>
+            <div class="activity-details">
+                <h2>{{ $title }}</h2>
+                <p>{{ $description }}</p>
+                
+                <div class="dates">
+                    <div class="date-badge">
+                        <p>Start Date</p>
+                        <strong>{{ $dateStart }}</strong>
+                    </div>
+                    <div class="date-badge">
+                        <p>End Date</p>
+                        <strong>{{ $dateEnd }}</strong>
+                    </div>
+                </div>
             </div>
             
-            <div class="credentials">
-                <p><strong>Email:</strong> {{ $email }}</p>
-                <p><strong>Password:</strong> {{ $password }}</p>
-            </div>
+            <p>Don't miss this opportunity! Visit your academy portal for more details.</p>
             
-            <p>For security reasons, we recommend changing your password after your first login.</p>
-            
-            <a href="{{ url('/login') }}" class="button">Login Now</a>
+            <a href="{{ url('/login') }}" class="button">View Details</a>
         </div>
         
         <div class="footer">
             <p>&copy; {{ date('Y') }} Terrana FC. All rights reserved.</p>
-            <p>Contact: support@terranafc.com | +212 600-000000</p>
+            <p>Contact: academy@terranafc.com | +212 600-000000</p>
         </div>
     </div>
 </body>

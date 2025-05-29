@@ -13,7 +13,7 @@ class CreateTournoiTable extends Migration
             $table->string('name');
             $table->text('description')->nullable();
             $table->integer('capacite');
-            $table->enum('type', ['5v5', '6v6', '7v7']);
+            $table->enum('type', ['5v5', '6v6', '7v7', '8v8', '9v9', '10v10', '11v11']);
             $table->date('date_debut');
             $table->date('date_fin');
             $table->decimal('frais_entree', 10, 2);

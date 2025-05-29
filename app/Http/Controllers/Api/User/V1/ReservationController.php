@@ -11,6 +11,8 @@ use App\Http\Resources\user\V1\ReservationResource;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\AccountCreated;
+use App\Mail\ReservationConfirmation;
+use Carbon\Carbon;
 
 class ReservationController extends Controller
 {
@@ -162,6 +164,20 @@ class ReservationController extends Controller
             $email = $validatedData['email'] ?? $validatedData['guest_email'] ?? null;
             $telephone = $validatedData['telephone'] ?? $validatedData['guest_telephone'] ?? null;
 
+            // Delete pending reservations that are older than 1 hour
+            $this->deleteExpiredPendingReservations();
+
+            // Check if client has reached maximum daily reservations (if not admin)
+            if ($validatedData['type'] !== 'admin' && isset($validatedData['id_client'])) {
+                $maxDailyReservations = $this->hasReachedMaxDailyReservations($validatedData['id_client'], $validatedData['date']);
+                if ($maxDailyReservations) {
+                    return response()->json([
+                        'error' => true,
+                        'message' => 'Vous avez atteint le nombre maximum de réservations pour cette journée (2 maximum).'
+                    ], 400);
+                }
+            }
+
             // Check for existing reservations at the same time
             $existingReservation = Reservation::where('id_terrain', $validatedData['id_terrain'])
                 ->where('date', $validatedData['date'])
@@ -276,6 +292,17 @@ class ReservationController extends Controller
                 ]);
             }
             
+            // Log reservation creation details
+            \Illuminate\Support\Facades\Log::debug('Reservation created', [
+                'id_reservation' => $reservation->id_reservation,
+                'id_client' => $reservation->id_client,
+                'date' => $reservation->date,
+                'heure' => $reservation->heure,
+                'etat' => $reservation->etat,
+                'today' => now()->format('Y-m-d'),
+                'matches_today' => $reservation->date === now()->format('Y-m-d')
+            ]);
+
             // If a new account was created and we have an email, send the account details
             if ($accountCreated && !empty($email) && !empty($newPassword)) {
                 try {
@@ -292,11 +319,36 @@ class ReservationController extends Controller
                     // Continue with the process even if email fails
                 }
             }
+            
+            // Send reservation confirmation email if we have an email
+            if (!empty($email)) {
+                try {
+                    // Get terrain name from database
+                    $terrain = DB::table('terrain')->where('id_terrain', $validatedData['id_terrain'])->value('name') ?? 'Unknown';
+                    
+                    $this->sendReservationConfirmationEmail(
+                        $email,
+                        $name ?? 'Guest',
+                        $numRes,
+                        $validatedData['date'],
+                        $validatedData['heure'],
+                        $terrain,
+                        $reservation->etat
+                    );
+                    
+                    \Illuminate\Support\Facades\Log::info("Reservation confirmation email sent to: " . $email);
+                } catch (\Exception $mailException) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send reservation confirmation email: " . $mailException->getMessage());
+                    // Continue with the process even if email fails
+                }
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'Réservation enregistrée avec succès',
-                'data' => new ReservationResource($reservation)
+                'data' => new ReservationResource($reservation),
+                'is_new_user' => $accountCreated,
+                'user_email' => $accountCreated ? $email : null
             ], 201);
 
         } catch (\Exception $e) {
@@ -306,7 +358,6 @@ class ReservationController extends Controller
             ], 500);
         }
     }
-
 
     public function destroy($id): JsonResponse
     {
@@ -613,6 +664,96 @@ class ReservationController extends Controller
                 'status' => 'error',
                 'message' => 'Failed to fetch reservations for the week: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Check if a user has reached the maximum number of reservations for a day (2 max)
+     *
+     * @param int $clientId
+     * @param string $date
+     * @return bool
+     */
+    protected function hasReachedMaxDailyReservations($clientId, $date): bool
+    {
+        $today = now()->format('Y-m-d');
+        
+        // Check if the reservation is for today or a future date
+        if ($date === $today) {
+            // For today's reservations, count both by date field and created_at
+            $reservationCount = Reservation::where('id_client', $clientId)
+                ->where(function($query) use ($today) {
+                    $query->where('date', $today)
+                          ->orWhereDate('created_at', $today);
+                })
+                ->where('etat', '!=', 'annuler')
+                ->count();
+        } else {
+            // For future dates, just check the date field
+            $reservationCount = Reservation::where('id_client', $clientId)
+                ->where('date', $date)
+                ->where('etat', '!=', 'annuler')
+                ->count();
+        }
+        
+        // Log the count for debugging
+        \Illuminate\Support\Facades\Log::debug('Reservation count check for client ' . $clientId, [
+            'date' => $date,
+            'today' => $today,
+            'is_today' => ($date === $today),
+            'count' => $reservationCount
+        ]);
+            
+        return $reservationCount >= 2;
+    }
+    
+    /**
+     * Delete pending reservations that are older than 1 hour
+     */
+    protected function deleteExpiredPendingReservations(): void
+    {
+        $oneHourAgo = Carbon::now()->subHour();
+        
+        Reservation::where('etat', 'en attente')
+            ->where('created_at', '<', $oneHourAgo)
+            ->delete();
+            
+        \Illuminate\Support\Facades\Log::info('Deleted expired pending reservations older than 1 hour');
+    }
+
+    /**
+     * Send reservation confirmation email
+     *
+     * @param string $email
+     * @param string $name
+     * @param string $numRes
+     * @param string $date
+     * @param string $time
+     * @param string $terrain
+     * @param string $status
+     * @return void
+     */
+    protected function sendReservationConfirmationEmail(
+        string $email,
+        string $name,
+        string $numRes,
+        string $date,
+        string $time,
+        string $terrain,
+        string $status
+    ): void {
+        try {
+            Mail::to($email)->send(new ReservationConfirmation(
+                $name,
+                $numRes,
+                $date,
+                $time,
+                $terrain,
+                $status
+            ));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to send reservation confirmation email: " . $e->getMessage());
+            // We're just logging the error, not stopping execution
         }
     }
 } 

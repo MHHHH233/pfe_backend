@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\DB;
 
 class GoogleAuthController extends Controller
 {
@@ -124,6 +125,7 @@ class GoogleAuthController extends Controller
                 if (!$existingUser->google_id) {
                     $existingUser->google_id = $googleUser['id'];
                     $existingUser->google_avatar = $googleUser['picture'] ?? null;
+                    
                     $existingUser->save();
                 }
                 
@@ -185,15 +187,72 @@ class GoogleAuthController extends Controller
             // Load all relationships to ensure we have a complete user object
             $user->load(['player', 'reservations', 'reviews']);
 
+            // Get today's reservations count - USING EXACT SAME CODE AS AUTHCONTROLLER
+            $today = now()->format('Y-m-d');
+            Log::debug('Google Auth - Checking reservations for user ID: ' . $user->id_compte . ' on date: ' . $today);
+            
+            // Verify user ID is an integer
+            $userId = (int)$user->id_compte;
+            Log::debug('Google Auth - User ID as integer: ' . $userId);
+            Log::debug('Google Auth - User ID type: ' . gettype($userId));
+            Log::debug('Google Auth - Original user ID type: ' . gettype($user->id_compte));
+            
+            // Direct SQL query for consistency with regular Auth
+            $rawSql = "SELECT COUNT(*) as count FROM reservation WHERE id_client = ? AND (date = ? OR DATE(created_at) = ?)";
+            $rawCount = DB::selectOne($rawSql, [$userId, $today, $today]);
+            
+            $todayReservationsCount = $rawCount ? (int)$rawCount->count : 0;
+            
+            Log::debug('Google Auth - Today\'s reservation count: <> ' . $todayReservationsCount);
+            
+            // Check if reservation table exists and has records
+            try {
+                $tableCheck = DB::select("SELECT COUNT(*) as count FROM reservation LIMIT 1");
+                Log::debug('Google Auth - Reservation table exists with records: ' . ($tableCheck ? 'Yes' : 'No'));
+                if ($tableCheck) {
+                    Log::debug('Google Auth - Total reservation count: ' . $tableCheck[0]->count);
+                }
+                
+                // Check for any reservations for this user
+                $userReservationCheck = DB::select("SELECT COUNT(*) as count FROM reservation WHERE id_client = ?", [$userId]);
+                Log::debug('Google Auth - User has any reservations: ' . ($userReservationCheck && $userReservationCheck[0]->count > 0 ? 'Yes' : 'No'));
+                if ($userReservationCheck) {
+                    Log::debug('Google Auth - Total user reservation count: ' . $userReservationCheck[0]->count);
+                }
+            } catch (Exception $e) {
+                Log::error('Google Auth - Error checking reservation table: ' . $e->getMessage());
+            }
+            
+            // Additional debugging
+            $allReservationsToday = \App\Models\Reservation::where('id_client', $userId)
+                ->where(function($query) use ($today) {
+                    $query->where('date', $today)
+                          ->orWhereDate('created_at', $today);
+                })
+                ->get();
+                
+            $simpleCount = DB::selectOne("SELECT COUNT(*) as count FROM reservation WHERE id_client = ?", [$userId]);
+            
+            // Get all reservations for this user (for debugging)
+            $allUserReservations = \App\Models\Reservation::where('id_client', $userId)
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get();
+                
+            Log::debug('Google Auth - All user reservations (last 10)', [
+                'count' => $allUserReservations->count(),
+                'reservations' => $allUserReservations->toArray()
+            ]);
+            
             // Fetch additional data (academie memberships and teams)
-            $academieMemberships = \App\Models\AcademieMembers::where('id_compte', $user->id_compte)
+            $academieMemberships = \App\Models\AcademieMembers::where('id_compte', $userId)
                 ->select('id_member', 'id_academie', 'subscription_plan', 'status')
                 ->get();
             
             $hasAcademieMembership = $academieMemberships->count() > 0;
             
             // Get user's teams where they are captain
-            $teams = \App\Models\Teams::where('capitain', $user->id_compte)->get();
+            $teams = \App\Models\Teams::where('capitain', $userId)->get();
             $hasTeams = $teams->count() > 0;
 
             // Prepare response data to exactly match login format
@@ -209,7 +268,15 @@ class GoogleAuthController extends Controller
                     'has_academie_membership' => $hasAcademieMembership,
                     'academie_memberships' => $academieMemberships,
                     'has_teams' => $hasTeams,
-                    'teams' => $teams
+                    'teams' => $teams,
+                    'today_reservations_count' => $todayReservationsCount,
+                    'raw_count' => $rawCount ? $rawCount->count : 0,
+                    'simple_count' => $simpleCount ? $simpleCount->count : 0,
+                    'all_res_count' => $allReservationsToday->count(),
+                    'all_user_res_count' => $allUserReservations->count(),
+                    'total_res_count' => $tableCheck ? $tableCheck[0]->count : 0,
+                    'total_user_res_count' => $userReservationCheck ? $userReservationCheck[0]->count : 0,
+                    'timestamp' => now()->timestamp
                 ],
             ];
             
@@ -219,7 +286,10 @@ class GoogleAuthController extends Controller
                     'db_role' => $user->role,
                     'permission_roles' => $roleNames->toArray(),
                     'has_admin_role_direct' => $user->hasRole('admin'),
-                    'database_id' => $user->id_compte
+                    'database_id' => $user->id_compte,
+                    'database_id_type' => gettype($user->id_compte),
+                    'userId' => $userId,
+                    'userId_type' => gettype($userId)
                 ];
             }
 
@@ -237,6 +307,14 @@ class GoogleAuthController extends Controller
                 $redirectUrl .= '&last_name=' . urlencode($user->nom);
                 $redirectUrl .= '&avatar=' . urlencode($user->pfp);
                 $redirectUrl .= '&role=' . urlencode($user->role);
+                $redirectUrl .= '&today_reservations_count=' . urlencode($todayReservationsCount);
+                $redirectUrl .= '&raw_count=' . urlencode($rawCount ? $rawCount->count : 0);
+                $redirectUrl .= '&simple_count=' . urlencode($simpleCount ? $simpleCount->count : 0);
+                $redirectUrl .= '&all_res_count=' . urlencode($allReservationsToday->count());
+                $redirectUrl .= '&all_user_res_count=' . urlencode($allUserReservations->count());
+                $redirectUrl .= '&total_res_count=' . urlencode($tableCheck ? $tableCheck[0]->count : 0);
+                $redirectUrl .= '&total_user_res_count=' . urlencode($userReservationCheck ? $userReservationCheck[0]->count : 0);
+                $redirectUrl .= '&timestamp=' . urlencode(now()->timestamp);
                 $redirectUrl .= '&status=success';
                 
                 return redirect()->away($redirectUrl);

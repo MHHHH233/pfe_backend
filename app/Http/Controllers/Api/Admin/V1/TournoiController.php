@@ -4,10 +4,15 @@ namespace App\Http\Controllers\Api\Admin\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tournoi;
+use App\Models\Compte;
+use App\Mail\TournamentNotification;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Http\Resources\Admin\V1\TournoiResource;
+use Carbon\Carbon;
 
 class TournoiController extends Controller
 {
@@ -112,6 +117,10 @@ class TournoiController extends Controller
 
         try {
             $tournoi = Tournoi::create($validatedData);
+            
+            // Send notification emails to team captains
+            $this->sendTournamentNotifications($tournoi);
+            
             return response()->json([
                 'message' => 'Tournament created successfully',
                 'data' => new TournoiResource($tournoi)
@@ -210,6 +219,60 @@ class TournoiController extends Controller
             $query->orderBy($sortBy, $sortOrder);
         } else {
             $query->orderBy('id_tournoi', 'desc');
+        }
+    }
+
+    /**
+     * Send email notifications about a new tournament
+     *
+     * @param Tournoi $tournoi
+     * @return void
+     */
+    protected function sendTournamentNotifications(Tournoi $tournoi): void
+    {
+        try {
+            // Get all players (users with role 'user' or 'player')
+            $players = Compte::whereHas('roles', function($query) {
+                $query->whereIn('name', ['user', 'player', 'team_captain']);
+            })->get();
+            
+            if ($players->isEmpty()) {
+                Log::info("No players found to notify about the new tournament");
+                return;
+            }
+            
+            // Format data for the email
+            $dateStart = Carbon::parse($tournoi->date_debut)->format('d M Y');
+            $dateEnd = Carbon::parse($tournoi->date_fin)->format('d M Y');
+            $fee = number_format($tournoi->frais_entree, 2) . ' DH';
+            
+            Log::info("Sending tournament notification to " . count($players) . " players");
+            
+            foreach ($players as $player) {
+                if (!$player->email) {
+                    continue;
+                }
+                
+                // Send email
+                Mail::to($player->email)->send(
+                    new TournamentNotification(
+                        $player->name ?? 'Player',
+                        $tournoi->name,
+                        $tournoi->description,
+                        $tournoi->type,
+                        $tournoi->capacite,
+                        $dateStart,
+                        $dateEnd,
+                        $fee,
+                        $tournoi->award
+                    )
+                );
+                
+                Log::info("Tournament notification email sent to: " . $player->email);
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to send tournament notification emails: " . $e->getMessage());
+            // Continue with the process even if email fails
         }
     }
 } 

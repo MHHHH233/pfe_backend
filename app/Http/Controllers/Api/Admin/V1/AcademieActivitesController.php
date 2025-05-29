@@ -4,10 +4,18 @@ namespace App\Http\Controllers\Api\Admin\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\AcademieActivites;
+use App\Models\Academie;
+use App\Models\AcademieMembres;
+use App\Models\Compte;
+use App\Mail\AcademieActivity;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Http\Resources\Admin\V1\AcademieActivitesResource;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AcademieActivitesController extends Controller
 {
@@ -109,6 +117,10 @@ class AcademieActivitesController extends Controller
 
         try {
             $activity = AcademieActivites::create($validatedData);
+            
+            // Send notification emails to academy members
+            $this->sendActivityNotifications($activity);
+            
             return response()->json([
                 'message' => 'Activity created successfully',
                 'data' => new AcademieActivitesResource($activity)
@@ -204,6 +216,71 @@ class AcademieActivitesController extends Controller
             $query->orderBy($sortBy, $sortOrder);
         } else {
             $query->orderBy('id_activites', 'desc');
+        }
+    }
+
+    /**
+     * Send email notifications to academy members about a new activity
+     *
+     * @param AcademieActivites $activity
+     * @return void
+     */
+    protected function sendActivityNotifications(AcademieActivites $activity): void
+    {
+        try {
+            // Get the academy
+            $academie = Academie::find($activity->id_academie);
+            if (!$academie) {
+                Log::warning("Academy not found for activity ID: " . $activity->id_activites);
+                return;
+            }
+            
+            // Get members of this specific academy with their account information
+            $members = DB::table('academie_members')
+                ->join('compte', 'academie_members.id_compte', '=', 'compte.id_compte')
+                ->where('academie_members.id_academie', $activity->id_academie)
+                ->whereNotNull('compte.email')
+                ->select('compte.id_compte', 'compte.nom', 'compte.prenom', 'compte.email')
+                ->get();
+                
+            if ($members->isEmpty()) {
+                Log::warning("No members with email found for academy ID: " . $activity->id_academie);
+                return;
+            }
+            
+            // For debug
+            Log::info("Activity notification - Found " . count($members) . " members with email for academy ID: " . $activity->id_academie);
+            
+            foreach ($members as $member) {
+                try {
+                    // Format dates
+                    $dateStart = Carbon::parse($activity->date_debut)->format('d M Y');
+                    $dateEnd = Carbon::parse($activity->date_fin)->format('d M Y');
+                    
+                    // Get user name
+                    $userName = $member->nom ?? $member->prenom ?? 'Member';
+                    
+                    // Send email
+                    Mail::to($member->email)->send(
+                        new AcademieActivity(
+                            $userName,
+                            $activity->title,
+                            $activity->description ?? 'No description provided',
+                            $dateStart,
+                            $dateEnd
+                        )
+                    );
+                    
+                    Log::info("Activity notification email sent to member: " . $member->email);
+                } catch (\Exception $emailException) {
+                    Log::error("Failed to send email to member {$member->email}: " . $emailException->getMessage());
+                    continue; // Continue with next member
+                }
+            }
+            
+            Log::info("Activity notification completed for activity ID: " . $activity->id_activites);
+        } catch (\Exception $e) {
+            Log::error("Failed to send activity notification emails: " . $e->getMessage());
         }
     }
 } 

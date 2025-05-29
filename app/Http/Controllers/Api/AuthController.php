@@ -13,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Sanctum\PersonalAccessToken;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
@@ -109,6 +111,18 @@ class AuthController extends Controller
         $teams = \App\Models\Teams::where('capitain', $user->id_compte)->get();
         $hasTeams = $teams->count() > 0;
         
+        // Get today's reservations count
+        $today = now()->format('Y-m-d');
+        Log::debug('Checking reservations for user: ' . $user->id_compte . ' on date: ' . $today);
+        
+        // Direct SQL query for consistency with Google Auth
+        $rawSql = "SELECT COUNT(*) as count FROM reservation WHERE id_client = ? AND (date = ? OR DATE(created_at) = ?)";
+        $rawCount = DB::selectOne($rawSql, [$user->id_compte, $today, $today]);
+        
+        $todayReservationsCount = $rawCount ? (int)$rawCount->count : 0;
+        
+        Log::debug('Today\'s reservation count: ' . $todayReservationsCount);
+        
         return response()->json(
             [
                 'status' => true,
@@ -122,7 +136,9 @@ class AuthController extends Controller
                     'has_academie_membership' => $hasAcademieMembership,
                     'academie_memberships' => $academieMemberships,
                     'has_teams' => $hasTeams,
-                    'teams' => $teams
+                    'teams' => $teams,
+                    'today_reservations_count' => $todayReservationsCount,
+                    'timestamp' => now()->timestamp
                 ],
             ],
             200,
@@ -199,6 +215,18 @@ class AuthController extends Controller
         $teams = \App\Models\Teams::where('capitain', $user->id_compte)->get();
         $hasTeams = $teams->count() > 0;
         
+        // Get today's reservations count
+        $today = now()->format('Y-m-d');
+        Log::debug('Checking reservations for user: ' . $user->id_compte . ' on date: ' . $today);
+        
+        // Direct SQL query for consistency with Google Auth
+        $rawSql = "SELECT COUNT(*) as count FROM reservation WHERE id_client = ? AND (date = ? OR DATE(created_at) = ?)";
+        $rawCount = DB::selectOne($rawSql, [$user->id_compte, $today, $today]);
+        
+        $todayReservationsCount = $rawCount ? (int)$rawCount->count : 0;
+        
+        Log::debug('Today\'s reservation count: ' . $todayReservationsCount);
+        
         return response()->json(
             [
                 'status' => true,
@@ -212,10 +240,116 @@ class AuthController extends Controller
                     'has_academie_membership' => $hasAcademieMembership,
                     'academie_memberships' => $academieMemberships,
                     'has_teams' => $hasTeams,
-                    'teams' => $teams
+                    'teams' => $teams,
+                    'today_reservations_count' => $todayReservationsCount,
+                    'timestamp' => now()->timestamp
                 ],
             ],
             200,
         );
+    }
+
+    /**
+     * Get today's reservations for debugging
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getTodayReservations(Request $request)
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+        
+        $today = now()->format('Y-m-d');
+        
+        // Get all reservations for today by date field
+        $reservationsByDate = \App\Models\Reservation::where('id_client', $user->id_compte)
+            ->where('date', $today)
+            ->get();
+            
+        // Get all reservations for today by created_at field
+        $reservationsByCreatedAt = \App\Models\Reservation::where('id_client', $user->id_compte)
+            ->whereDate('created_at', $today)
+            ->get();
+            
+        // Get count of non-cancelled reservations by either date or created_at
+        $activeCount = \App\Models\Reservation::where('id_client', $user->id_compte)
+            ->where(function($query) use ($today) {
+                $query->where('date', $today)
+                      ->orWhereDate('created_at', $today);
+            })
+            ->count();
+            
+        // Direct SQL query for comparison
+        $rawSql = "SELECT * FROM reservation WHERE id_client = ? AND (date = ? OR DATE(created_at) = ?)";
+        $rawResults = DB::select($rawSql, [$user->id_compte, $today, $today]);
+        
+        // Get all reservations regardless of date (for debugging)
+        $allReservations = \App\Models\Reservation::where('id_client', $user->id_compte)
+            ->orderBy('created_at', 'desc')
+            ->limit(10)
+            ->get();
+            
+        return response()->json([
+            'status' => true,
+            'message' => 'Today\'s reservations',
+            'today' => $today,
+            'user_id' => $user->id_compte,
+            'active_count' => $activeCount,
+            'reservations_by_date' => $reservationsByDate,
+            'reservations_by_created_at' => $reservationsByCreatedAt,
+            'raw_results' => $rawResults,
+            'all_reservations' => $allReservations,
+            'server_time' => now()->toDateTimeString()
+        ]);
+    }
+
+    /**
+     * Refresh the reservation count for a user
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function refreshReservationCount(Request $request)
+    {
+        $user = $request->user();
+        
+        if (!$user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized'
+            ], 401);
+        }
+        
+        $today = now()->format('Y-m-d');
+        
+        // Direct SQL query for consistency
+        $rawSql = "SELECT COUNT(*) as count FROM reservation WHERE id_client = ? AND (date = ? OR DATE(created_at) = ?)";
+        $rawCount = DB::selectOne($rawSql, [$user->id_compte, $today, $today]);
+        
+        $todayReservationsCount = $rawCount ? (int)$rawCount->count : 0;
+        
+        Log::debug('Refresh - Today\'s reservation count: ' . $todayReservationsCount);
+        
+        // Get the last 5 reservations for debugging
+        $recentReservations = \App\Models\Reservation::where('id_client', $user->id_compte)
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get(['id_reservation', 'date', 'heure', 'etat', 'created_at']);
+            
+        return response()->json([
+            'status' => true,
+            'today_reservations_count' => $todayReservationsCount,
+            'timestamp' => now()->timestamp,
+            'today_date' => $today,
+            'server_time' => now()->toDateTimeString(),
+            'recent_reservations' => $recentReservations
+        ]);
     }
 }
