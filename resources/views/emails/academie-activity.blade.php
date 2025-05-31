@@ -147,7 +147,7 @@
             
             <p>Don't miss this opportunity! Visit your academy portal for more details.</p>
             
-            <a href="{{ url('/login') }}" class="button">View Details</a>
+            <a href="https://moulweb.com/events" class="button">View Details</a>
         </div>
         
         <div class="footer">

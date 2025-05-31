@@ -125,7 +125,7 @@
             
             <p>For security reasons, we recommend changing your password after your first login.</p>
             
-            <a href="{{ url('/login') }}" class="button">Login Now</a>
+            <a href="https://moulweb.com/profile" class="button">Login Now</a>
         </div>
         
         <div class="footer">

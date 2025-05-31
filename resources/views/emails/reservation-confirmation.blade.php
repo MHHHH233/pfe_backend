@@ -123,7 +123,7 @@
             
             <p>If you need to make any changes to your reservation, please contact us or log in to your account.</p>
             
-            <a href="{{ url('/login') }}" class="button">Manage Reservation</a>
+            <a href="https://moulweb.com/profile" class="button">Manage Reservation</a>
         </div>
         
         <div class="footer">
