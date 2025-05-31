@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Facades\DB;
+use App\Mail\GoogleAccountCreated;
+use Illuminate\Support\Facades\Mail;
 
 class GoogleAuthController extends Controller
 {
@@ -140,15 +142,18 @@ class GoogleAuthController extends Controller
                     'has_admin_role' => $user->hasRole('admin')
                 ]);
             } else {
-                // Create new user
-                $user = Compte::create([
+                // If client doesn't exist, create a new account
+                $newPassword = \Illuminate\Support\Str::random(10);
+                $accountCreated = true;
+                
+                $user = \App\Models\Compte::create([
                     'nom' => $googleUser['family_name'] ?? $googleUser['name'],
                     'prenom' => $googleUser['given_name'] ?? '',
                     'email' => $googleUser['email'],
                     'google_id' => $googleUser['id'],
                     'google_avatar' => $googleUser['picture'] ?? null,
-                    'pfp' => $googleUser['picture'] ?? null,
-                    'password' => Hash::make(rand(1000000, 9999999)),
+                    'pfp' => app(\App\Http\Controllers\Api\AuthController::class)->getRandomProfilePicture(),
+                    'password' => \Illuminate\Support\Facades\Hash::make($newPassword),
                     'age' => '',
                     'telephone' => '',
                     'role' => 'user', // Default role for new users
@@ -156,9 +161,22 @@ class GoogleAuthController extends Controller
                     'updated_at' => now(),
                 ]);
                 
-                // Assign default role for new users
+                // Assign user role
                 $user->assignRole('user');
                 Log::info('New user created with role: user');
+
+                // Send welcome email with the new GoogleAccountCreated template
+                try {
+                    Mail::to($googleUser['email'])->send(new GoogleAccountCreated(
+                        $googleUser['name'] ?? 'Guest',
+                        $googleUser['email'],
+                        $newPassword
+                    ));
+                    
+                    \Illuminate\Support\Facades\Log::info("Google account creation email sent to: " . $googleUser['email']);
+                } catch (\Exception $mailException) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send Google account email: " . $mailException->getMessage());
+                }
             }
 
             // Ensure role is properly synced with permission system
