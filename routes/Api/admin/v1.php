@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\Admin\V1\ReviewsController;
 use App\Http\Controllers\Api\Admin\V1\PlayerTeamController;
 use App\Http\Controllers\Api\Admin\V1\SocialMediaController;
 use App\Http\Controllers\Api\Admin\V1\ContactController;
+use App\Http\Controllers\Api\Admin\V1\PaymentController;
 use App\Http\Resources\Admin\V1\PlayerRequestResource;
 
 Route::prefix('admin')->as('admin.')->group(function () {
@@ -44,6 +45,10 @@ Route::prefix('admin')->as('admin.')->group(function () {
         Route::apiResource('reviews', ReviewsController::class);
         Route::patch('reviews/{id}/status', [ReviewsController::class, 'updateStatus']);
         Route::apiResource('ratings', RatingController::class);
+        
+        // Payment routes
+        Route::apiResource('payments', PaymentController::class);
+        Route::patch('payments/{id}/status', [PaymentController::class, 'updateStatus']);
         
         // Social Media routes
         Route::apiResource('social-media', SocialMediaController::class);

@@ -49,6 +49,20 @@ class Players extends Model
     }
     
     /**
+     * Get academies associated with this player through their compte.
+     */
+    public function academies()
+    {
+        return $this->belongsToMany(
+            Academie::class,
+            'academie_members',
+            'id_compte',
+            'id_academie',
+            'id_compte'
+        );
+    }
+    
+    /**
      * Get player statistics.
      * This is a virtual relationship that returns player stats.
      */

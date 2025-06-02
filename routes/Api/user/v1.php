@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\User\V1\PlayerTeamController;
 use App\Http\Controllers\Api\User\V1\SocialMediaController;
 use App\Http\Controllers\Api\User\V1\ContactController;
 use App\Http\Controllers\Api\User\V1\ChatbotController;
+use App\Http\Controllers\Api\User\V1\PaymentController;
 
 Route::prefix('user')->as('user.')->group(function () {
     Route::prefix('v1')->as('v1.')->group(function () {
@@ -125,5 +126,10 @@ Route::prefix('user')->as('user.')->group(function () {
             Route::get('chatbot/models', [ChatbotController::class, 'getAvailableModels']);
         });
                 
+        // Add routes for payments
+        Route::middleware('auth:sanctum')->prefix('payments')->group(function () {
+            Route::post('/', [PaymentController::class, 'store']);
+            Route::get('/{id}', [PaymentController::class, 'show']);
+        });
     });
 });

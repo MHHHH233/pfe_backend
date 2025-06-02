@@ -16,7 +16,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Delete pending reservations older than 1 hour every 15 minutes
+        // Delete pending reservations older than 1 hour every 5 minutes
         $schedule->call(function () {
             $oneHourAgo = Carbon::now()->subHour();
             
@@ -25,7 +25,7 @@ class Kernel extends ConsoleKernel
                 ->delete();
                 
             Log::info('Scheduled task: Deleted ' . $deletedCount . ' expired pending reservations older than 1 hour');
-        })->everyFifteenMinutes();
+        })->everyFiveMinutes();
         
         // Delete past reservations every day at midnight
         $schedule->call(function () {

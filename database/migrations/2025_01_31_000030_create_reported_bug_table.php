@@ -16,7 +16,7 @@ class CreateReportedBugTable extends Migration
             $table->foreign('id_compte')
                   ->references('id_compte')
                   ->on('compte')
-                  ->onDelete('set null');
+                  ->onDelete('cascade');
         });
     }
 

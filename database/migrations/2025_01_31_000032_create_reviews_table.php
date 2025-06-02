@@ -13,7 +13,7 @@ class CreateReviewsTable extends Migration
             $table->string('name', 50)->nullable();
             $table->string('description', 100)->nullable();
             $table->timestamps();
-            $table->foreign('id_compte')->references('id_compte')->on('compte');
+            $table->foreign('id_compte')->references('id_compte')->on('compte')->onDelete('cascade');
         });
     }
 

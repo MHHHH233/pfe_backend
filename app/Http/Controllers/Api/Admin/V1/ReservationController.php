@@ -233,6 +233,7 @@ class ReservationController extends Controller
                 'Name' => 'nullable|string|max:255',
                 'email' => 'nullable|string|email|max:255',
                 'telephone' => 'nullable|string|max:255',
+                'payment_method' => 'nullable|string|in:cash,online',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -242,7 +243,7 @@ class ReservationController extends Controller
             // Delete pending reservations that are older than 1 hour
             $this->deleteExpiredPendingReservations();
 
-            // Check if client has reached maximum daily reservations (if not admin type)
+            // For admin type, skip the maximum daily reservations check
             if ($validatedData['type'] !== 'admin' && isset($validatedData['id_client'])) {
                 $maxDailyReservations = $this->hasReachedMaxDailyReservations($validatedData['id_client'], $validatedData['date']);
                 if ($maxDailyReservations) {
@@ -260,18 +261,30 @@ class ReservationController extends Controller
                 ->first();
 
             if ($existingReservation) {
-                if ($existingReservation->etat === 'reserver') {
-                    return response()->json([
-                        'error' => true,
-                        'message' => 'Cet horaire est déjà réservé pour ce terrain.'
-                    ], 409);
-                }
+                // If admin type, allow overriding existing reservations that are not already reserved
+                if ($validatedData['type'] === 'admin') {
+                    if ($existingReservation->etat === 'reserver') {
+                        return response()->json([
+                            'error' => true,
+                            'message' => 'Cet horaire est déjà réservé pour ce terrain.'
+                        ], 409);
+                    }
+                    // If the existing reservation is 'en attente', we'll override it
+                } else {
+                    // For regular users, check normally
+                    if ($existingReservation->etat === 'reserver') {
+                        return response()->json([
+                            'error' => true,
+                            'message' => 'Cet horaire est déjà réservé pour ce terrain.'
+                        ], 409);
+                    }
 
-                if (isset($validatedData['id_client']) && $existingReservation->id_client === $validatedData['id_client']) {
-                    return response()->json([
-                        'error' => true,
-                        'message' => 'Vous avez déjà réservé cette horaire dans ce terrain.'
-                    ], 409);
+                    if (isset($validatedData['id_client']) && $existingReservation->id_client === $validatedData['id_client']) {
+                        return response()->json([
+                            'error' => true,
+                            'message' => 'Vous avez déjà réservé cette horaire dans ce terrain.'
+                        ], 409);
+                    }
                 }
             }
 
@@ -348,6 +361,7 @@ class ReservationController extends Controller
                 'num_res' => $numRes
             ];
 
+            // Admin reservations are always set to 'reserver' status
             if ($validatedData['type'] === 'admin') {
                 $reservationData['etat'] = 'reserver';
                 $reservationData['Name'] = $validatedData['Name'] ?? null;
@@ -360,17 +374,48 @@ class ReservationController extends Controller
                 }
             } else {
                 $reservationData['id_client'] = $validatedData['id_client'] ?? ($client ? $client->id_compte : null);
-                $reservationData['etat'] = 'en attente';
+                
+                // For regular users, set status based on payment method
+                if (isset($validatedData['payment_method']) && $validatedData['payment_method'] === 'online') {
+                    $reservationData['etat'] = 'reserver';
+                } else {
+                    $reservationData['etat'] = 'en attente';
+                }
+                
                 $reservationData['Name'] = $validatedData['Name'] ?? ($client ? $client->name : null);
             }
 
-            $reservation = Reservation::create($reservationData);
+            // If there's an existing pending reservation and this is an admin reservation, delete the old one
+            if ($existingReservation && $validatedData['type'] === 'admin' && $existingReservation->etat === 'en attente') {
+                $existingReservation->delete();
+                Log::info('Admin reservation replaced a pending reservation for terrain ' . $validatedData['id_terrain'] . ' at ' . $validatedData['date'] . ' ' . $validatedData['heure']);
+            }
 
-            return response()->json([
+            $reservation = Reservation::create($reservationData);
+            
+            // Log reservation creation details
+            Log::debug('Admin - Reservation created', [
+                'id_reservation' => $reservation->id_reservation,
+                'id_client' => $reservation->id_client,
+                'date' => $reservation->date,
+                'heure' => $reservation->heure,
+                'etat' => $reservation->etat,
+                'type' => $validatedData['type'],
+                'payment_method' => $validatedData['payment_method'] ?? 'none'
+            ]);
+            
+            $response = [
                 'success' => true,
                 'message' => 'Réservation enregistrée avec succès',
                 'data' => new ReservationResource($reservation)
-            ], 201);
+            ];
+            
+            // Add expiration warning for pending reservations
+            if ($reservationData['etat'] === 'en attente') {
+                $response['expiration_warning'] = 'Attention: La réservation est en attente et sera automatiquement annulée après 1 heure si elle n\'est pas confirmée.';
+            }
+
+            return response()->json($response, 201);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -688,6 +733,7 @@ class ReservationController extends Controller
 
     /**
      * Check if a user has reached the maximum number of reservations for a day (2 max)
+     * Admins can bypass this limit
      *
      * @param int $clientId
      * @param string $date
@@ -695,6 +741,12 @@ class ReservationController extends Controller
      */
     protected function hasReachedMaxDailyReservations($clientId, $date): bool
     {
+        // Check if user is admin - admins can make unlimited reservations
+        $user = Compte::find($clientId);
+        if ($user && $user->hasRole('admin')) {
+            return false; // Admins bypass the limit
+        }
+        
         $today = now()->format('Y-m-d');
         
         // Check if the reservation is for today or a future date

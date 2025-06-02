@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\Admin\V1\PlayerRequestController;
-
+use App\Http\Controllers\StripeController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -33,8 +33,41 @@ Route::prefix('v1/emails')->group(function () {
     Route::post('/reservation-confirmation', [App\Http\Controllers\Api\User\V1\EmailController::class, 'sendReservationConfirmation']);
 });
 
+Route::post('/create-payment-intent', [StripeController::class, 'createPaymentIntent']);
+Route::get('/payment-intent/{paymentIntentId}', [StripeController::class, 'retrievePaymentIntent']);
+Route::post('/attach-payment-method', [StripeController::class, 'attachPaymentMethod']);
+Route::post('/webhook', [StripeController::class, 'webhook']);
+
 // Include admin and user routes
 require __DIR__ . '/Api/admin/v1.php';
 require __DIR__ . '/Api/user/v1.php';
+
+/*
+|--------------------------------------------------------------------------
+| Cleanup Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/cleanup/reservations/{secret_token}', function ($secretToken) {
+    // Check if the token matches the one in the environment
+    if ($secretToken !== env('CLEANUP_SECRET_TOKEN', 'your-default-secret-token')) {
+        return response()->json(['error' => 'Unauthorized'], 401);
+    }
+
+    // Delete pending reservations older than 1 hour
+    $oneHourAgo = \Carbon\Carbon::now()->subHour();
+    
+    $deletedCount = \App\Models\Reservation::where('etat', 'en attente')
+        ->where('created_at', '<', $oneHourAgo)
+        ->delete();
+        
+    \Illuminate\Support\Facades\Log::info('API cleanup: Deleted ' . $deletedCount . ' expired pending reservations older than 1 hour');
+    
+    return response()->json([
+        'success' => true,
+        'message' => 'Cleanup completed successfully',
+        'deleted_count' => $deletedCount
+    ]);
+});
 
 ?>

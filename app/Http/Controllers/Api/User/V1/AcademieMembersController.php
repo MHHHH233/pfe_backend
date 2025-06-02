@@ -27,6 +27,10 @@ class AcademieMembersController extends Controller
             $validator = Validator::make($request->all(), [
                 'id_academie' => 'required|exists:academie,id_academie',
                 'subscription_plan' => 'required|in:base,premium',
+                'payment_method' => 'required|in:cash,online',
+                'amount' => 'required_if:payment_method,online|nullable|numeric',
+                'currency' => 'required_if:payment_method,online|nullable|string|size:3',
+                'payment_method_id' => 'nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -67,20 +71,117 @@ class AcademieMembersController extends Controller
                 ], 404);
             }
 
+            // Determine membership status based on payment method
+            $membershipStatus = 'pending';
+            if ($request->payment_method === 'online') {
+                $membershipStatus = 'active';
+            }
+
             // Create new membership
             $member = new AcademieMembers;
             $member->id_compte = $compte->id_compte;
             $member->id_academie = $request->id_academie;
             $member->subscription_plan = $request->subscription_plan;
-            $member->status = 'active';
+            $member->status = $membershipStatus;
             $member->date_joined = Carbon::now();
             $member->save();
 
-            return response()->json([
+            // If payment method is online, create a payment record
+            $payment = null;
+            if ($request->payment_method === 'online') {
+                // Determine amount based on subscription plan
+                $planPrice = $request->subscription_plan === 'premium' 
+                    ? ($academie->plan_premium ?? 19.99) 
+                    : ($academie->plan_base ?? 9.99);
+                
+                $amount = $request->amount ?? $planPrice;
+                $currency = $request->currency ?? 'usd';
+
+                // Create Stripe payment intent
+                \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
+                $paymentIntentData = [
+                    'amount' => round($amount * 100), // Convert to cents
+                    'currency' => $currency,
+                    'automatic_payment_methods' => ['enabled' => true],
+                    'metadata' => [
+                        'payment_type' => 'academie_subscription',
+                        'id_academie' => $request->id_academie,
+                        'id_membre' => $member->id_member,
+                        'id_compte' => $compte->id_compte,
+                        'plan' => $request->subscription_plan
+                    ],
+                ];
+                
+                // If payment method ID is provided, attach it to the payment intent
+                if ($request->has('payment_method_id') && !empty($request->payment_method_id)) {
+                    $paymentIntentData['payment_method'] = $request->payment_method_id;
+                }
+                
+                $paymentIntent = \Stripe\PaymentIntent::create($paymentIntentData);
+
+                // Create payment record
+                $payment = new \App\Models\Payment([
+                    'stripe_payment_intent_id' => $paymentIntent->id,
+                    'stripe_payment_method_id' => $request->payment_method_id ?? null,
+                    'amount' => $amount,
+                    'currency' => $currency,
+                    'status' => 'pending',
+                    'payment_method' => 'stripe',
+                    'id_academie' => $request->id_academie,
+                    'id_compte' => $compte->id_compte,
+                    'payment_details' => json_encode([
+                        'payment_intent' => $paymentIntent->id,
+                        'client_secret' => $paymentIntent->client_secret,
+                        'subscription_plan' => $request->subscription_plan,
+                        'member_id' => $member->id_member
+                    ]),
+                ]);
+                $payment->save();
+                
+                // If payment method ID is provided, get payment method details and store them
+                if ($request->has('payment_method_id') && !empty($request->payment_method_id)) {
+                    try {
+                        $paymentMethod = \Stripe\PaymentMethod::retrieve($request->payment_method_id);
+                        
+                        // Update payment details with payment method info
+                        $paymentDetails = json_decode($payment->payment_details, true);
+                        $paymentDetails['payment_method'] = [
+                            'id' => $paymentMethod->id,
+                            'type' => $paymentMethod->type,
+                            'brand' => $paymentMethod->type === 'card' ? $paymentMethod->card->brand : null,
+                            'last4' => $paymentMethod->type === 'card' ? $paymentMethod->card->last4 : null,
+                            'exp_month' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_month : null,
+                            'exp_year' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_year : null,
+                            'billing_name' => $paymentMethod->billing_details->name,
+                            'billing_email' => $paymentMethod->billing_details->email,
+                            'billing_phone' => $paymentMethod->billing_details->phone
+                        ];
+                        $payment->payment_details = json_encode($paymentDetails);
+                        $payment->save();
+                    } catch (\Exception $e) {
+                        \Illuminate\Support\Facades\Log::error("Error retrieving payment method details: " . $e->getMessage());
+                    }
+                }
+            }
+
+            $response = [
                 'success' => true,
                 'data' => new AcademieMembersResource($member),
                 'message' => 'Successfully subscribed to academy'
-            ], 201);
+            ];
+
+            // Add payment info to response if available
+            if ($payment) {
+                $response['payment'] = [
+                    'id_payment' => $payment->id_payment,
+                    'client_secret' => json_decode($payment->payment_details)->client_secret,
+                    'amount' => $payment->amount,
+                    'currency' => $payment->currency,
+                    'status' => $payment->status
+                ];
+            }
+
+            return response()->json($response, 201);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

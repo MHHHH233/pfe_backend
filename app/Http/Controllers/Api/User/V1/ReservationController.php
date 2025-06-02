@@ -153,6 +153,10 @@ class ReservationController extends Controller
                 'guest_name' => 'nullable|string|max:255',
                 'Name' => 'nullable|string|max:255',
                 'type' => 'required|string|in:admin,client',
+                'payment_method' => 'nullable|string|in:cash,online',
+                'amount' => 'nullable|numeric',
+                'currency' => 'nullable|string|size:3',
+                'payment_method_id' => 'nullable|string',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -185,18 +189,29 @@ class ReservationController extends Controller
                 ->first();
 
             if ($existingReservation) {
-                if ($existingReservation->etat === 'reserver') {
-                    return response()->json([
-                        'error' => true,
-                        'message' => 'Cet horaire est déjà réservé pour ce terrain.'
-                    ], 409);
-                }
+                // If admin type, allow overriding existing reservations that are not already reserved
+                if ($validatedData['type'] === 'admin') {
+                    if ($existingReservation->etat === 'reserver') {
+                        return response()->json([
+                            'error' => true,
+                            'message' => 'Cet horaire est déjà réservé pour ce terrain.'
+                        ], 409);
+                    }
+                } else {
+                    // For regular users, check normally
+                    if ($existingReservation->etat === 'reserver') {
+                        return response()->json([
+                            'error' => true,
+                            'message' => 'Cet horaire est déjà réservé pour ce terrain.'
+                        ], 409);
+                    }
 
-                if ($existingReservation->id_client === $validatedData['id_client']) {
-                    return response()->json([
-                        'error' => true,
-                        'message' => 'Vous avez déjà réservé cette horaire dans ce terrain.'
-                    ], 409);
+                    if (isset($validatedData['id_client']) && $existingReservation->id_client === $validatedData['id_client']) {
+                        return response()->json([
+                            'error' => true,
+                            'message' => 'Vous avez déjà réservé cette horaire dans ce terrain.'
+                        ], 409);
+                    }
                 }
             }
 
@@ -269,28 +284,28 @@ class ReservationController extends Controller
             // Generate a unique reservation number
             $numRes = 'RES-' . date('Ymd') . '-' . strtoupper(\Illuminate\Support\Str::random(5));
 
-            // Create new reservation based on user type
+            // Determine reservation status based on payment method and user type
+            $reservationStatus = 'en attente';
+            
+            // Admin reservations are always set to 'reserver' regardless of payment method
             if ($validatedData['type'] === 'admin') {
-                $reservation = Reservation::create([
-                    'id_client' => $client ? $client->id_compte : null,
-                    'id_terrain' => $validatedData['id_terrain'],
-                    'date' => $validatedData['date'],
-                    'heure' => $validatedData['heure'],
-                    'etat' => 'reserver',
-                    'Name' => $name ?? ($client ? $client->name : null),
-                    'num_res' => $numRes
-                ]);
-            } else {
-                $reservation = Reservation::create([
-                    'id_client' => $validatedData['id_client'] ?? ($client ? $client->id_compte : null),
-                    'id_terrain' => $validatedData['id_terrain'],
-                    'date' => $validatedData['date'],
-                    'heure' => $validatedData['heure'],
-                    'etat' => 'en attente',
-                    'Name' => $name ?? ($client ? $client->name : null),
-                    'num_res' => $numRes
-                ]);
+                $reservationStatus = 'reserver';
             }
+            // For regular users, only set to 'reserver' if using online payment
+            elseif (isset($validatedData['payment_method']) && $validatedData['payment_method'] === 'online') {
+                $reservationStatus = 'reserver';
+            }
+
+            // Create new reservation
+            $reservation = Reservation::create([
+                'id_client' => $validatedData['id_client'] ?? ($client ? $client->id_compte : null),
+                'id_terrain' => $validatedData['id_terrain'],
+                'date' => $validatedData['date'],
+                'heure' => $validatedData['heure'],
+                'etat' => $reservationStatus,
+                'Name' => $name ?? ($client ? $client->name : null),
+                'num_res' => $numRes
+            ]);
             
             // Log reservation creation details
             \Illuminate\Support\Facades\Log::debug('Reservation created', [
@@ -300,8 +315,89 @@ class ReservationController extends Controller
                 'heure' => $reservation->heure,
                 'etat' => $reservation->etat,
                 'today' => now()->format('Y-m-d'),
-                'matches_today' => $reservation->date === now()->format('Y-m-d')
+                'matches_today' => $reservation->date === now()->format('Y-m-d'),
+                'payment_method' => $validatedData['payment_method'] ?? 'none',
+                'type' => $validatedData['type']
             ]);
+
+            // If payment method is online, create a payment record
+            $payment = null;
+            if (isset($validatedData['payment_method']) && $validatedData['payment_method'] === 'online') {
+                // Get terrain price
+                $terrain = \App\Models\Terrain::find($validatedData['id_terrain']);
+                $amount = $validatedData['amount'] ?? ($terrain ? $terrain->prix : 0);
+                $currency = $validatedData['currency'] ?? 'usd';
+
+                try {
+                    // Create Stripe payment intent
+                    \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
+                    $paymentIntentData = [
+                        'amount' => round($amount * 100), // Convert to cents
+                        'currency' => $currency,
+                        'automatic_payment_methods' => ['enabled' => true],
+                        'metadata' => [
+                            'payment_type' => 'reservation',
+                            'id_reservation' => $reservation->id_reservation,
+                            'id_compte' => $client ? $client->id_compte : null,
+                        ],
+                    ];
+                    
+                    // If payment method ID is provided, attach it to the payment intent
+                    if (!empty($validatedData['payment_method_id'])) {
+                        $paymentIntentData['payment_method'] = $validatedData['payment_method_id'];
+                    }
+                    
+                    $paymentIntent = \Stripe\PaymentIntent::create($paymentIntentData);
+
+                    // Create payment record
+                    $payment = new \App\Models\Payment([
+                        'stripe_payment_intent_id' => $paymentIntent->id,
+                        'stripe_payment_method_id' => $validatedData['payment_method_id'] ?? null,
+                        'amount' => $amount,
+                        'currency' => $currency,
+                        'status' => 'pending',
+                        'payment_method' => 'stripe',
+                        'id_reservation' => $reservation->id_reservation,
+                        'id_compte' => $client ? $client->id_compte : ($validatedData['id_client'] ?? null),
+                        'payment_details' => json_encode([
+                            'payment_intent' => $paymentIntent->id,
+                            'client_secret' => $paymentIntent->client_secret,
+                        ]),
+                    ]);
+                    $payment->save();
+                    
+                    // If payment method ID is provided, get payment method details and store them
+                    if (!empty($validatedData['payment_method_id'])) {
+                        try {
+                            $paymentMethod = \Stripe\PaymentMethod::retrieve($validatedData['payment_method_id']);
+                            
+                            // Update payment details with payment method info
+                            $paymentDetails = json_decode($payment->payment_details, true);
+                            $paymentDetails['payment_method'] = [
+                                'id' => $paymentMethod->id,
+                                'type' => $paymentMethod->type,
+                                'brand' => $paymentMethod->type === 'card' ? $paymentMethod->card->brand : null,
+                                'last4' => $paymentMethod->type === 'card' ? $paymentMethod->card->last4 : null,
+                                'exp_month' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_month : null,
+                                'exp_year' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_year : null,
+                                'billing_name' => $paymentMethod->billing_details->name,
+                                'billing_email' => $paymentMethod->billing_details->email,
+                                'billing_phone' => $paymentMethod->billing_details->phone
+                            ];
+                            $payment->payment_details = json_encode($paymentDetails);
+                            $payment->save();
+                        } catch (\Exception $e) {
+                            \Illuminate\Support\Facades\Log::error("Error retrieving payment method details: " . $e->getMessage());
+                        }
+                    }
+                } catch (\Exception $e) {
+                    // For admin users, continue even if payment processing fails
+                    if ($validatedData['type'] !== 'admin') {
+                        throw $e;
+                    }
+                    \Illuminate\Support\Facades\Log::warning("Payment processing failed but continuing for admin user: " . $e->getMessage());
+                }
+            }
 
             // If a new account was created and we have an email, send the account details
             if ($accountCreated && !empty($email) && !empty($newPassword)) {
@@ -343,13 +439,31 @@ class ReservationController extends Controller
                 }
             }
 
-            return response()->json([
+            $response = [
                 'success' => true,
                 'message' => 'Réservation enregistrée avec succès',
                 'data' => new ReservationResource($reservation),
                 'is_new_user' => $accountCreated,
                 'user_email' => $accountCreated ? $email : null
-            ], 201);
+            ];
+
+            // Add payment info to response if available
+            if ($payment) {
+                $response['payment'] = [
+                    'id_payment' => $payment->id_payment,
+                    'client_secret' => json_decode($payment->payment_details)->client_secret,
+                    'amount' => $payment->amount,
+                    'currency' => $payment->currency,
+                    'status' => $payment->status
+                ];
+            }
+            
+            // Add expiration warning for pending reservations
+            if ($reservationStatus === 'en attente') {
+                $response['expiration_warning'] = 'Attention: Votre réservation est en attente et sera automatiquement annulée après 1 heure si elle n\'est pas confirmée.';
+            }
+
+            return response()->json($response, 201);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -669,6 +783,7 @@ class ReservationController extends Controller
 
     /**
      * Check if a user has reached the maximum number of reservations for a day (2 max)
+     * Admins can bypass this limit
      *
      * @param int $clientId
      * @param string $date
@@ -676,6 +791,12 @@ class ReservationController extends Controller
      */
     protected function hasReachedMaxDailyReservations($clientId, $date): bool
     {
+        // Check if user is admin - admins can make unlimited reservations
+        $user = \App\Models\Compte::find($clientId);
+        if ($user && $user->hasRole('admin')) {
+            return false; // Admins bypass the limit
+        }
+        
         $today = now()->format('Y-m-d');
         
         // Check if the reservation is for today or a future date

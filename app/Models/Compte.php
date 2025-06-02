@@ -43,4 +43,15 @@ class Compte extends Authenticatable
     {
         return $this->hasMany(Reviews::class, 'id_compte');
     }
+
+    public function reportedBugs()
+    {
+        return $this->hasMany(ReportedBug::class, 'id_compte');
+    }
+
+    public function notifications()
+    {
+        return $this->morphMany(\Illuminate\Notifications\DatabaseNotification::class, 'notifiable')
+                    ->orderBy('created_at', 'desc');
+    }
 } 

@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-use App\Http\Resources\User\V1\CompteResource;
+use App\Http\Resources\user\V1\CompteResource;
 use Illuminate\Support\Facades\DB;
 
 class CompteController extends Controller
