@@ -20,15 +20,30 @@ class StripeController extends Controller
         Stripe::setApiKey(env('STRIPE_SECRET'));
 
         try {
+            // Set default values
+            $amount = $request->amount ?? 1000;
+            $currency = strtolower($request->currency ?? 'usd');
+            
+            // Handle minimum amount requirements for different currencies
+            // MAD requires special handling
+            if ($currency === 'mad') {
+                // For MAD, convert to a higher amount to meet Stripe's minimum requirement
+                // 1 MAD = approximately 0.09 EUR, so we need at least 550 MAD to meet the 50 cents minimum
+                if ($amount < 550) {
+                    $amount = 550; // Minimum amount that converts to at least 50 cents
+                }
+            }
+            
             $intent = PaymentIntent::create([
-                'amount' => $request->amount ?? 1000, // Default to 10 USD in cents
-                'currency' => $request->currency ?? 'usd',
+                'amount' => $amount,
+                'currency' => $currency,
                 'automatic_payment_methods' => ['enabled' => true],
                 'metadata' => $request->metadata ?? [],
             ]);
 
             return response()->json([
                 'clientSecret' => $intent->client_secret,
+                'amount' => $amount,
             ]);
         } catch (\Stripe\Exception\ApiErrorException $e) {
             Log::error('Stripe API Error: ' . $e->getMessage());

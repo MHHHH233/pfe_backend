@@ -7,7 +7,7 @@ use App\Models\Teams;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
-use App\Http\Resources\User\V1\TeamsResource;
+use App\Http\Resources\user\V1\TeamsResource;
 use Illuminate\Support\Facades\DB;
 
 class TeamsController extends Controller

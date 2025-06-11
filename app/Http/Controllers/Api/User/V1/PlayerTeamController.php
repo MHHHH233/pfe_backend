@@ -9,7 +9,7 @@ use App\Models\Teams;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
-use App\Http\Resources\User\V1\PlayerTeamResource;
+use App\Http\Resources\user\V1\PlayerTeamResource;
 use App\Models\PlayerRequest;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;

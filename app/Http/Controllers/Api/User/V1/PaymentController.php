@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\User\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\Compte;
-use App\Http\Resources\User\V1\PaymentResource;
+use App\Http\Resources\user\V1\PaymentResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;

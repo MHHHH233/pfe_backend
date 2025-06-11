@@ -33,6 +33,12 @@ Route::prefix('v1/emails')->group(function () {
     Route::post('/reservation-confirmation', [App\Http\Controllers\Api\User\V1\EmailController::class, 'sendReservationConfirmation']);
 });
 
+// Invoice routes
+Route::prefix('v1/invoices')->group(function () {
+    Route::get('/{reservationNumber}/download', [App\Http\Controllers\Api\InvoiceController::class, 'download']);
+    Route::get('/{reservationNumber}/view', [App\Http\Controllers\Api\InvoiceController::class, 'view']);
+});
+
 Route::post('/create-payment-intent', [StripeController::class, 'createPaymentIntent']);
 Route::get('/payment-intent/{paymentIntentId}', [StripeController::class, 'retrievePaymentIntent']);
 Route::post('/attach-payment-method', [StripeController::class, 'attachPaymentMethod']);

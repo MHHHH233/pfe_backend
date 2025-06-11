@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Reservation;
 use App\Models\Compte;
 use App\Mail\ReservationConfirmation;
+use App\Mail\PaymentConfirmation;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
@@ -233,7 +234,7 @@ class ReservationController extends Controller
                 'Name' => 'nullable|string|max:255',
                 'email' => 'nullable|string|email|max:255',
                 'telephone' => 'nullable|string|max:255',
-                'payment_method' => 'nullable|string|in:cash,online',
+                'payment_method' => 'nullable|string|in:cash,online,stripe',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -643,29 +644,46 @@ class ReservationController extends Controller
                 
                 // Send email if we have a client email
                 if ($clientEmail) {
-                    // Get terrain name
+                    // Get terrain name and price
                     $terrain = DB::table('terrain')
                         ->where('id_terrain', $reservation->id_terrain)
-                        ->value('nom_terrain') ?? 'Unknown';
+                        ->first();
                     
-                    // Send the email
-                    try {
-                        Mail::to($clientEmail)->send(
-                            new ReservationConfirmation(
-                                $clientName,
-                                $reservation->num_res,
-                                $reservation->date,
-                                $reservation->heure,
-                                $terrain,
-                                $reservation->etat
-                            )
-                        );
-                        
-                        Log::info("Reservation confirmation email sent to: " . $clientEmail);
-                    } catch (\Exception $mailException) {
-                        Log::error("Failed to send reservation confirmation email: " . $mailException->getMessage());
-                        // Continue with the process even if email fails
+                    $terrainName = $terrain ? $terrain->nom_terrain : 'Unknown';
+                    $terrainPrice = $terrain ? $terrain->prix : null;
+                    
+                    // Check if there's a payment record associated with this reservation
+                    $payment = \App\Models\Payment::where('id_reservation', $reservation->id_reservation)
+                        ->orderBy('created_at', 'desc')
+                        ->first();
+                    
+                    $amount = null;
+                    $currency = 'MAD';
+                    $paymentMethod = 'cash';
+                    
+                    if ($payment) {
+                        $amount = $payment->amount;
+                        $currency = $payment->currency;
+                        $paymentMethod = $payment->payment_method;
+                    } elseif ($terrainPrice) {
+                        $amount = $terrainPrice;
                     }
+                    
+                    // Send payment confirmation email with invoice
+                    $this->sendPaymentConfirmationEmail(
+                        $clientEmail,
+                        $clientName,
+                        $reservation->num_res,
+                        $reservation->date,
+                        $reservation->heure,
+                        $terrainName,
+                        $reservation->etat,
+                        $paymentMethod,
+                        $amount,
+                        $currency
+                    );
+                    
+                    Log::info("Reservation confirmation email with invoice sent to: " . $clientEmail);
                 } else {
                     Log::warning("Could not find email for reservation ID: " . $reservation->id_reservation);
                 }
@@ -728,6 +746,51 @@ class ReservationController extends Controller
                 'message' => 'Failed to update Reservation status',
                 'error' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Send payment confirmation email with invoice
+     *
+     * @param string $email
+     * @param string $name
+     * @param string $numRes
+     * @param string $date
+     * @param string $time
+     * @param string $terrain
+     * @param string $status
+     * @param string $payment_method
+     * @param float|null $amount
+     * @param string|null $currency
+     * @return void
+     */
+    protected function sendPaymentConfirmationEmail(
+        string $email,
+        string $name,
+        string $numRes,
+        string $date,
+        string $time,
+        string $terrain,
+        string $status,
+        string $payment_method,
+        ?float $amount = null,
+        ?string $currency = null
+    ): void {
+        try {
+            Mail::to($email)->send(new \App\Mail\PaymentConfirmation(
+                $name,
+                $numRes,
+                $date,
+                $time,
+                $terrain,
+                $status,
+                $payment_method,
+                $amount,
+                $currency
+            ));
+        } catch (\Exception $e) {
+            Log::error("Failed to send payment confirmation email: " . $e->getMessage());
+            // We're just logging the error, not stopping execution
         }
     }
 

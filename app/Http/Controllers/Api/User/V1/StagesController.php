@@ -7,7 +7,7 @@ use App\Models\Stages;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
-use App\Http\Resources\User\V1\StagesResource;
+use App\Http\Resources\user\V1\StagesResource;
 
 class StagesController extends Controller
 {

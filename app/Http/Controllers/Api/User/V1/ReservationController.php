@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\AccountCreated;
 use App\Mail\ReservationConfirmation;
+use App\Mail\PaymentConfirmation;
 use Carbon\Carbon;
 
 class ReservationController extends Controller
@@ -153,7 +154,7 @@ class ReservationController extends Controller
                 'guest_name' => 'nullable|string|max:255',
                 'Name' => 'nullable|string|max:255',
                 'type' => 'required|string|in:admin,client',
-                'payment_method' => 'nullable|string|in:cash,online',
+                'payment_method' => 'nullable|string',
                 'amount' => 'nullable|numeric',
                 'currency' => 'nullable|string|size:3',
                 'payment_method_id' => 'nullable|string',
@@ -291,8 +292,10 @@ class ReservationController extends Controller
             if ($validatedData['type'] === 'admin') {
                 $reservationStatus = 'reserver';
             }
-            // For regular users, only set to 'reserver' if using online payment
-            elseif (isset($validatedData['payment_method']) && $validatedData['payment_method'] === 'online') {
+            // For regular users, set to 'reserver' if using online payment or stripe, but keep cash as 'en attente'
+            elseif (isset($validatedData['payment_method']) && 
+                  ($validatedData['payment_method'] === 'online' || 
+                   $validatedData['payment_method'] === 'stripe')) {
                 $reservationStatus = 'reserver';
             }
 
@@ -322,77 +325,136 @@ class ReservationController extends Controller
 
             // If payment method is online, create a payment record
             $payment = null;
-            if (isset($validatedData['payment_method']) && $validatedData['payment_method'] === 'online') {
+            if (isset($validatedData['payment_method'])) {
                 // Get terrain price
                 $terrain = \App\Models\Terrain::find($validatedData['id_terrain']);
                 $amount = $validatedData['amount'] ?? ($terrain ? $terrain->prix : 0);
                 $currency = $validatedData['currency'] ?? 'usd';
 
                 try {
-                    // Create Stripe payment intent
-                    \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
-                    $paymentIntentData = [
-                        'amount' => round($amount * 100), // Convert to cents
-                        'currency' => $currency,
-                        'automatic_payment_methods' => ['enabled' => true],
-                        'metadata' => [
-                            'payment_type' => 'reservation',
-                            'id_reservation' => $reservation->id_reservation,
-                            'id_compte' => $client ? $client->id_compte : null,
-                        ],
-                    ];
-                    
-                    // If payment method ID is provided, attach it to the payment intent
-                    if (!empty($validatedData['payment_method_id'])) {
-                        $paymentIntentData['payment_method'] = $validatedData['payment_method_id'];
-                    }
-                    
-                    $paymentIntent = \Stripe\PaymentIntent::create($paymentIntentData);
-
-                    // Create payment record
-                    $payment = new \App\Models\Payment([
-                        'stripe_payment_intent_id' => $paymentIntent->id,
-                        'stripe_payment_method_id' => $validatedData['payment_method_id'] ?? null,
-                        'amount' => $amount,
-                        'currency' => $currency,
-                        'status' => 'pending',
-                        'payment_method' => 'stripe',
-                        'id_reservation' => $reservation->id_reservation,
-                        'id_compte' => $client ? $client->id_compte : ($validatedData['id_client'] ?? null),
-                        'payment_details' => json_encode([
+                    if ($validatedData['payment_method'] === 'online') {
+                        // Create Stripe payment intent
+                        \Stripe\Stripe::setApiKey(env('STRIPE_SECRET'));
+                        $paymentIntentData = [
+                            'amount' => round($amount * 100), // Convert to cents
+                            'currency' => $currency,
+                            'automatic_payment_methods' => ['enabled' => true],
+                            'metadata' => [
+                                'payment_type' => 'reservation',
+                                'id_reservation' => $reservation->id_reservation,
+                                'id_compte' => $client ? $client->id_compte : null,
+                            ],
+                        ];
+                        
+                        // Log payment intent data
+                        \Illuminate\Support\Facades\Log::debug('Creating Stripe payment intent', $paymentIntentData);
+                        
+                        // If payment method ID is provided, attach it to the payment intent
+                        if (!empty($validatedData['payment_method_id'])) {
+                            $paymentIntentData['payment_method'] = $validatedData['payment_method_id'];
+                        }
+                        
+                        $paymentIntent = \Stripe\PaymentIntent::create($paymentIntentData);
+                        
+                        // Log created payment intent
+                        \Illuminate\Support\Facades\Log::debug('Stripe payment intent created', [
+                            'id' => $paymentIntent->id,
+                            'client_secret' => $paymentIntent->client_secret,
+                            'status' => $paymentIntent->status
+                        ]);
+                        
+                        // Create payment record for online payment
+                        $paymentDetails = [
                             'payment_intent' => $paymentIntent->id,
                             'client_secret' => $paymentIntent->client_secret,
-                        ]),
-                    ]);
-                    $payment->save();
-                    
-                    // If payment method ID is provided, get payment method details and store them
-                    if (!empty($validatedData['payment_method_id'])) {
-                        try {
-                            $paymentMethod = \Stripe\PaymentMethod::retrieve($validatedData['payment_method_id']);
-                            
-                            // Update payment details with payment method info
-                            $paymentDetails = json_decode($payment->payment_details, true);
-                            $paymentDetails['payment_method'] = [
-                                'id' => $paymentMethod->id,
-                                'type' => $paymentMethod->type,
-                                'brand' => $paymentMethod->type === 'card' ? $paymentMethod->card->brand : null,
-                                'last4' => $paymentMethod->type === 'card' ? $paymentMethod->card->last4 : null,
-                                'exp_month' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_month : null,
-                                'exp_year' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_year : null,
-                                'billing_name' => $paymentMethod->billing_details->name,
-                                'billing_email' => $paymentMethod->billing_details->email,
-                                'billing_phone' => $paymentMethod->billing_details->phone
-                            ];
-                            $payment->payment_details = json_encode($paymentDetails);
-                            $payment->save();
-                        } catch (\Exception $e) {
-                            \Illuminate\Support\Facades\Log::error("Error retrieving payment method details: " . $e->getMessage());
+                        ];
+                        
+                        $payment = new \App\Models\Payment([
+                            'stripe_payment_intent_id' => $paymentIntent->id,
+                            'stripe_payment_method_id' => $validatedData['payment_method_id'] ?? null,
+                            'amount' => $amount,
+                            'currency' => $currency,
+                            'status' => 'pending',
+                            'payment_method' => 'stripe',
+                            'id_reservation' => $reservation->id_reservation,
+                            'id_compte' => $client ? $client->id_compte : ($validatedData['id_client'] ?? null),
+                            'payment_details' => json_encode($paymentDetails),
+                        ]);
+                        $payment->save();
+                        
+                        // Log payment record
+                        \Illuminate\Support\Facades\Log::debug('Payment record created', [
+                            'id_payment' => $payment->id_payment,
+                            'payment_details' => $paymentDetails
+                        ]);
+                        
+                        // If payment method ID is provided, get payment method details and store them
+                        if (!empty($validatedData['payment_method_id'])) {
+                            try {
+                                $paymentMethod = \Stripe\PaymentMethod::retrieve($validatedData['payment_method_id']);
+                                
+                                // Update payment details with payment method info
+                                $paymentDetails['payment_method'] = [
+                                    'id' => $paymentMethod->id,
+                                    'type' => $paymentMethod->type,
+                                    'brand' => $paymentMethod->type === 'card' ? $paymentMethod->card->brand : null,
+                                    'last4' => $paymentMethod->type === 'card' ? $paymentMethod->card->last4 : null,
+                                    'exp_month' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_month : null,
+                                    'exp_year' => $paymentMethod->type === 'card' ? $paymentMethod->card->exp_year : null,
+                                    'billing_name' => $paymentMethod->billing_details->name,
+                                    'billing_email' => $paymentMethod->billing_details->email,
+                                    'billing_phone' => $paymentMethod->billing_details->phone
+                                ];
+                                $payment->payment_details = json_encode($paymentDetails);
+                                $payment->save();
+                                
+                                // Log updated payment details
+                                \Illuminate\Support\Facades\Log::debug('Payment details updated with payment method', [
+                                    'id_payment' => $payment->id_payment,
+                                    'payment_method_id' => $paymentMethod->id
+                                ]);
+                            } catch (\Exception $e) {
+                                \Illuminate\Support\Facades\Log::error("Error retrieving payment method details: " . $e->getMessage());
+                            }
                         }
+                    } else {
+                        // Create payment record for other payment methods (cash, etc.)
+                        $transactionId = 'TRX-' . strtoupper(\Illuminate\Support\Str::random(8));
+                        $paymentDetails = [
+                            'method' => $validatedData['payment_method'],
+                            'timestamp' => now()->toIso8601String(),
+                            'transaction_id' => $transactionId,
+                        ];
+                        
+                        // For cash payments, set status to pending since it needs to be verified
+                        $paymentStatus = ($validatedData['payment_method'] === 'cash') ? 'pending' : 'completed';
+                        
+                        $payment = new \App\Models\Payment([
+                            'amount' => $amount,
+                            'currency' => $currency,
+                            'status' => $paymentStatus,
+                            'payment_method' => $validatedData['payment_method'],
+                            'id_reservation' => $reservation->id_reservation,
+                            'id_compte' => $client ? $client->id_compte : ($validatedData['id_client'] ?? null),
+                            'payment_details' => json_encode($paymentDetails),
+                        ]);
+                        $payment->save();
+                        
+                        // Log payment record for non-online payment
+                        \Illuminate\Support\Facades\Log::debug('Non-online payment record created', [
+                            'id_payment' => $payment->id_payment,
+                            'method' => $validatedData['payment_method'],
+                            'transaction_id' => $transactionId
+                        ]);
                     }
                 } catch (\Exception $e) {
                     // For admin users, continue even if payment processing fails
                     if ($validatedData['type'] !== 'admin') {
+                        \Illuminate\Support\Facades\Log::error("Payment processing failed: " . $e->getMessage(), [
+                            'exception' => $e,
+                            'payment_method' => $validatedData['payment_method'],
+                            'id_reservation' => $reservation->id_reservation ?? null
+                        ]);
                         throw $e;
                     }
                     \Illuminate\Support\Facades\Log::warning("Payment processing failed but continuing for admin user: " . $e->getMessage());
@@ -449,18 +511,82 @@ class ReservationController extends Controller
 
             // Add payment info to response if available
             if ($payment) {
-                $response['payment'] = [
+                $paymentDetails = json_decode($payment->payment_details);
+                $responsePayment = [
                     'id_payment' => $payment->id_payment,
-                    'client_secret' => json_decode($payment->payment_details)->client_secret,
                     'amount' => $payment->amount,
                     'currency' => $payment->currency,
-                    'status' => $payment->status
+                    'status' => $payment->status,
+                    'payment_method' => $payment->payment_method
                 ];
+                
+                // Add client_secret for online payments
+                if ($payment->payment_method === 'stripe' && $paymentDetails && isset($paymentDetails->client_secret)) {
+                    $responsePayment['client_secret'] = $paymentDetails->client_secret;
+                }
+                
+                // Add transaction_id for non-online payments
+                if ($payment->payment_method !== 'stripe' && $paymentDetails && isset($paymentDetails->transaction_id)) {
+                    $responsePayment['transaction_id'] = $paymentDetails->transaction_id;
+                }
+                
+                $response['payment'] = $responsePayment;
             }
+            
+            // Add email_sent flag to response
+            $email_sent = false;
+            
+            // Send confirmation email for online payments or cash payments
+            if (isset($validatedData['payment_method']) && 
+                ($validatedData['payment_method'] === 'online' || 
+                 $validatedData['payment_method'] === 'cash' || 
+                 $validatedData['payment_method'] === 'stripe') && 
+                !empty($email)) {
+                try {
+                    // Get terrain name and price from database
+                    $terrain = DB::table('terrain')->where('id_terrain', $validatedData['id_terrain'])->first();
+                    $terrainName = $terrain ? $terrain->nom_terrain : 'Unknown';
+                    
+                    // Get payment amount and currency
+                    $amount = null;
+                    $currency = 'MAD';
+                    
+                    if ($payment) {
+                        $amount = $payment->amount;
+                        $currency = $payment->currency;
+                    } elseif ($terrain) {
+                        $amount = $terrain->prix;
+                    }
+                    
+                    // Send payment confirmation email
+                    $this->sendPaymentConfirmationEmail(
+                        $email,
+                        $name ?? 'Guest',
+                        $numRes,
+                        $validatedData['date'],
+                        $validatedData['heure'],
+                        $terrainName,
+                        $reservation->etat,
+                        $validatedData['payment_method'],
+                        $amount,
+                        $currency
+                    );
+                    
+                    \Illuminate\Support\Facades\Log::info("Payment confirmation email sent to: " . $email);
+                    $email_sent = true;
+                } catch (\Exception $mailException) {
+                    \Illuminate\Support\Facades\Log::error("Failed to send payment confirmation email: " . $mailException->getMessage());
+                }
+            }
+            
+            $response['email_sent'] = $email_sent;
             
             // Add expiration warning for pending reservations
             if ($reservationStatus === 'en attente') {
                 $response['expiration_warning'] = 'Attention: Votre réservation est en attente et sera automatiquement annulée après 1 heure si elle n\'est pas confirmée.';
+            } else if (isset($validatedData['payment_method']) && $validatedData['payment_method'] === 'cash') {
+                $response['cash_payment'] = true;
+                $response['message'] = 'Réservation confirmée. Veuillez vous présenter à l\'accueil pour finaliser le paiement en espèces.';
             }
 
             return response()->json($response, 201);
@@ -874,6 +1000,51 @@ class ReservationController extends Controller
             ));
         } catch (\Exception $e) {
             \Illuminate\Support\Facades\Log::error("Failed to send reservation confirmation email: " . $e->getMessage());
+            // We're just logging the error, not stopping execution
+        }
+    }
+
+    /**
+     * Send payment confirmation email
+     *
+     * @param string $email
+     * @param string $name
+     * @param string $numRes
+     * @param string $date
+     * @param string $time
+     * @param string $terrain
+     * @param string $status
+     * @param string $payment_method
+     * @param float|null $amount
+     * @param string|null $currency
+     * @return void
+     */
+    protected function sendPaymentConfirmationEmail(
+        string $email,
+        string $name,
+        string $numRes,
+        string $date,
+        string $time,
+        string $terrain,
+        string $status,
+        string $payment_method,
+        ?float $amount = null,
+        ?string $currency = null
+    ): void {
+        try {
+            Mail::to($email)->send(new PaymentConfirmation(
+                $name,
+                $numRes,
+                $date,
+                $time,
+                $terrain,
+                $status,
+                $payment_method,
+                $amount,
+                $currency
+            ));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Failed to send payment confirmation email: " . $e->getMessage());
             // We're just logging the error, not stopping execution
         }
     }

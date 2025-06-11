@@ -7,7 +7,7 @@ use App\Models\Reviews;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
-use App\Http\Resources\User\V1\ReviewsResource;
+use App\Http\Resources\user\V1\ReviewsResource;
 
 class ReviewsController extends Controller
 {

@@ -7,7 +7,7 @@ use App\Models\TournoiTeams;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
-use App\Http\Resources\User\V1\TournoiTeamsResource;
+use App\Http\Resources\user\V1\TournoiTeamsResource;
 
 class TournoiTeamsController extends Controller
 {
