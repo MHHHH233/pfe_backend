@@ -165,7 +165,7 @@
             
             <p>Register your team early to secure your spot!</p>
             
-            <a href="https://moulweb.com/tournoi" class="button">Register Now</a>
+            <a href="http://localhost:8000/tournoi" class="button">Register Now</a>
         </div>
         
         <div class="footer">

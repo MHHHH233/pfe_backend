@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\File;
 class AcademieCoachController extends Controller
 {
     private $imageFolder = 'images/coach';
-    private $baseUrl = 'https://moulweb.com/back/pfe_backend/';
+    private $baseUrl = 'http://localhost:8000/';
 
     public function __construct()
     {

@@ -29,18 +29,31 @@ class PlayerTeamResource extends JsonResource
                             'id' => $this->player->compte->id_compte,
                             'nom' => $this->player->compte->nom,
                             'prenom' => $this->player->compte->prenom,
-                            'profile_picture' => $this->player->compte->profile_picture,
+                            'profile_picture' => $this->player->compte->pfp,
                         ];
                     })
                 ];
             }),
             'team' => $this->whenLoaded('team', function() {
-                return [
+                $teamData = [
                     'id' => $this->team->id_teams,
                     'name' => $this->team->team_name ?? null,
                     'rating' => $this->team->rating,
-                    'captain_id' => $this->team->capitain,
+                    'captain_id' => $this->team->capitain
                 ];
+                
+                // Add captain details if loaded
+                if ($this->team->relationLoaded('captain')) {
+                    $teamData['captain'] = [
+                        'id' => $this->team->captain->id_compte,
+                        'nom' => $this->team->captain->nom,
+                        'prenom' => $this->team->captain->prenom,
+                        'email' => $this->team->captain->email,
+                        'profile_picture' => $this->team->captain->pfp
+                    ];
+                }
+                
+                return $teamData;
             }),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

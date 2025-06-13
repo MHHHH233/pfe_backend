@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\File;
 class TerrainController extends Controller
 {
     private $imageFolder = 'images/terrains';
-    private $baseUrl = 'https://moulweb.com/back/pfe_backend/';
+    private $baseUrl = 'http://localhost:8000/';
     public function __construct()
     {
         // Create the images/terrains directory if it doesn't exist

@@ -78,13 +78,13 @@ class CompteController extends Controller
     {
         $path = public_path('images/default_pfp');
         $files = File::files($path);
-        $baseUrl = 'https://moulweb.com/back/pfe_backend/';
+        $baseUrl = 'http://localhost:8000/';
         if (count($files) === 0) {
             return $baseUrl . 'images/default_pfp/default.png';
         }
         
         $randomFile = $files[array_rand($files)];
-        return 'images/default_pfp/' . $randomFile->getFilename();
+        return $baseUrl . 'images/default_pfp/' . $randomFile->getFilename();
     }
 
     /**

@@ -164,7 +164,7 @@
             <p>Thank you for your payment. If you need to make any changes to your reservation, please contact us or log in to your account.</p>
             
             <div class="button-container">
-                <a href="https://moulweb.com/profile" class="button">Manage Reservation</a>
+                <a href="http://localhost:8000/profile" class="button">Manage Reservation</a>
                 <p style="margin: 15px 0 5px;">Your invoice is attached to this email.</p>
             </div>
         </div>

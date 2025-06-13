@@ -11,6 +11,7 @@ class CreateReservationTable extends Migration
             $table->increments('id_reservation');
             $table->unsignedInteger('id_client')->nullable();
             $table->unsignedInteger('id_terrain');
+            $table->float('advance_payment')->nullable();
             $table->date('date')->nullable();
             $table->time('heure')->nullable();
             $table->enum('etat', ['reserver', 'en attente'])->default('en attente');

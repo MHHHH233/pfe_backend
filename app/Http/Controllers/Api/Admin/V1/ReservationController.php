@@ -37,6 +37,7 @@ class ReservationController extends Controller
                     'reservation.date',
                     'reservation.heure',
                     'reservation.etat',
+                    'reservation.advance_payment',
                     'reservation.created_at'
                 ])
                 ->leftJoin('compte', 'reservation.id_client', '=', 'compte.id_compte')
@@ -99,6 +100,24 @@ class ReservationController extends Controller
 
             // Transform the data to match your expected format
             $response = collect($reservations->items())->map(function ($reservation) {
+                // Check if there's a payment for this reservation
+                $payment = DB::table('payments')
+                    ->where('id_reservation', $reservation->id_reservation)
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+                
+                $paymentInfo = null;
+                if ($payment) {
+                    $paymentInfo = [
+                        'id_payment' => $payment->id_payment,
+                        'amount' => $payment->amount,
+                        'status' => $payment->status,
+                        'payment_method' => $payment->payment_method,
+                        'currency' => $payment->currency,
+                        'stripe_payment_intent_id' => $payment->stripe_payment_intent_id,
+                    ];
+                }
+                
                 return [
                     'id_reservation' => $reservation->id_reservation,
                     'num_res' => $reservation->num_res,
@@ -118,6 +137,8 @@ class ReservationController extends Controller
                     'date' => $reservation->date,
                     'heure' => $reservation->heure,
                     'etat' => $reservation->etat,
+                    'advance_payment' => $reservation->advance_payment,
+                    'payment' => $paymentInfo,
                     'created_at' => $reservation->created_at
                 ];
             });
@@ -165,6 +186,7 @@ class ReservationController extends Controller
                     'reservation.date',
                     'reservation.heure',
                     'reservation.etat',
+                    'reservation.advance_payment',
                     'reservation.created_at',
                     'reservation.updated_at'
                 ])
@@ -176,6 +198,26 @@ class ReservationController extends Controller
 
             if (!$reservation) {
                 return response()->json(['message' => 'Reservation not found'], 404);
+            }
+
+            // Get related payment information
+            $payment = DB::table('payments')
+                ->where('id_reservation', $id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+                
+            $paymentInfo = null;
+            if ($payment) {
+                $paymentInfo = [
+                    'id_payment' => $payment->id_payment,
+                    'amount' => $payment->amount,
+                    'status' => $payment->status,
+                    'payment_method' => $payment->payment_method,
+                    'currency' => $payment->currency,
+                    'stripe_payment_intent_id' => $payment->stripe_payment_intent_id,
+                    'payment_details' => $payment->payment_details ? json_decode($payment->payment_details) : null,
+                    'created_at' => $payment->created_at
+                ];
             }
 
             $result = [
@@ -199,6 +241,8 @@ class ReservationController extends Controller
                 'date' => $reservation->date,
                 'heure' => $reservation->heure,
                 'etat' => $reservation->etat,
+                'advance_payment' => $reservation->advance_payment,
+                'payment' => $paymentInfo,
                 'created_at' => $reservation->created_at,
                 'updated_at' => $reservation->updated_at
             ];
@@ -235,6 +279,12 @@ class ReservationController extends Controller
                 'email' => 'nullable|string|email|max:255',
                 'telephone' => 'nullable|string|max:255',
                 'payment_method' => 'nullable|string|in:cash,online,stripe',
+                'payment_status' => 'nullable|string|in:paid,partially_paid,unpaid',
+                'advance_payment' => 'nullable|numeric',
+                'price' => 'nullable|numeric',
+                'payment_intent_id' => 'nullable|string',
+                'amount' => 'nullable|numeric',
+                'currency' => 'nullable|string',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -362,9 +412,41 @@ class ReservationController extends Controller
                 'num_res' => $numRes
             ];
 
-            // Admin reservations are always set to 'reserver' status
+            // Add advance_payment if provided
+            if (isset($validatedData['advance_payment'])) {
+                $reservationData['advance_payment'] = $validatedData['advance_payment'];
+            } else if (isset($validatedData['amount']) && $validatedData['payment_method'] === 'stripe') {
+                // For Stripe payments, use the amount as advance_payment if advance_payment is not set
+                $reservationData['advance_payment'] = $validatedData['amount'];
+            }
+
+            // Admin reservations status depends on payment method and status
             if ($validatedData['type'] === 'admin') {
-                $reservationData['etat'] = 'reserver';
+                // For Stripe payments with 'paid' status, set etat to 'reserver'
+                if (isset($validatedData['payment_method']) && 
+                    $validatedData['payment_method'] === 'stripe' && 
+                    isset($validatedData['payment_status']) && 
+                    $validatedData['payment_status'] === 'paid') {
+                    $reservationData['etat'] = 'reserver';
+                }
+                // If admin type with advance_payment set and payment_status is partially_paid, set status to 'en attente'
+                else if (isset($validatedData['advance_payment']) && 
+                    $validatedData['advance_payment'] > 0 && 
+                    isset($validatedData['payment_status']) && 
+                    $validatedData['payment_status'] === 'partially_paid') {
+                    // Check if price equals advance_payment for cash payments
+                    if (isset($validatedData['payment_method']) && 
+                        $validatedData['payment_method'] === 'cash' && 
+                        isset($validatedData['price']) && 
+                        $validatedData['price'] == $validatedData['advance_payment']) {
+                        $reservationData['etat'] = 'reserver';
+                    } else {
+                        $reservationData['etat'] = 'en attente';
+                    }
+                } else {
+                    $reservationData['etat'] = 'reserver';
+                }
+                
                 $reservationData['Name'] = $validatedData['Name'] ?? null;
                 
                 // If id_client is provided for admin reservation, include it
@@ -394,6 +476,87 @@ class ReservationController extends Controller
 
             $reservation = Reservation::create($reservationData);
             
+            // Create a payment record if advance_payment or Stripe payment is provided
+            if ((isset($validatedData['advance_payment']) && $validatedData['advance_payment'] > 0) ||
+                (isset($validatedData['payment_method']) && $validatedData['payment_method'] === 'stripe' && isset($validatedData['amount']))) {
+                
+                $paymentStatus = 'pending';
+                
+                // Set payment status based on payment_status
+                if (isset($validatedData['payment_status'])) {
+                    $paymentStatus = $validatedData['payment_status'] === 'paid' ? 'completed' : 'pending';
+                }
+                
+                $paymentMethod = isset($validatedData['payment_method']) ? 
+                    $validatedData['payment_method'] : 
+                    'cash';
+                
+                $fullPrice = isset($validatedData['price']) ? $validatedData['price'] : null;
+                
+                // Get terrain price if full price is not provided
+                if (!$fullPrice) {
+                    $terrain = \App\Models\Terrain::find($validatedData['id_terrain']);
+                    $fullPrice = $terrain ? $terrain->prix : 0;
+                }
+                
+                $amount = isset($validatedData['advance_payment']) ? 
+                    $validatedData['advance_payment'] : 
+                    (isset($validatedData['amount']) ? $validatedData['amount'] : 0);
+                
+                $currency = isset($validatedData['currency']) ? 
+                    $validatedData['currency'] : 
+                    'MAD';
+                
+                // Create payment record
+                $payment = \App\Models\Payment::create([
+                    'amount' => $amount,
+                    'status' => $paymentStatus,
+                    'payment_method' => $paymentMethod,
+                    'currency' => $currency,
+                    'id_reservation' => $reservation->id_reservation,
+                    'id_compte' => $reservationData['id_client'] ?? null,
+                    'stripe_payment_intent_id' => $validatedData['payment_intent_id'] ?? null,
+                    'payment_details' => json_encode([
+                        'full_price' => $fullPrice,
+                        'advance_payment' => $amount,
+                        'remaining' => $fullPrice - $amount,
+                        'type' => $amount == $fullPrice ? 'full_payment' : 'advance_payment',
+                        'payment_intent_id' => $validatedData['payment_intent_id'] ?? null
+                    ])
+                ]);
+                
+                Log::info('Payment record created for reservation', [
+                    'reservation_id' => $reservation->id_reservation,
+                    'payment_id' => $payment->id_payment,
+                    'amount' => $payment->amount,
+                    'status' => $payment->status,
+                    'payment_method' => $payment->payment_method,
+                    'payment_intent_id' => $payment->stripe_payment_intent_id
+                ]);
+                
+                // Send payment confirmation email if status is 'paid'
+                if (isset($validatedData['payment_status']) && $validatedData['payment_status'] === 'paid' && !empty($validatedData['email'])) {
+                    // Get terrain name
+                    $terrain = \App\Models\Terrain::find($validatedData['id_terrain']);
+                    $terrainName = $terrain ? $terrain->nom_terrain : 'Unknown';
+                    
+                    $this->sendPaymentConfirmationEmail(
+                        $validatedData['email'],
+                        $validatedData['Name'] ?? 'Client',
+                        $reservation->num_res,
+                        $reservation->date,
+                        $reservation->heure,
+                        $terrainName,
+                        $reservation->etat,
+                        $paymentMethod,
+                        $amount,
+                        $currency
+                    );
+                    
+                    Log::info("Stripe payment confirmation email sent to: " . $validatedData['email']);
+                }
+            }
+            
             // Log reservation creation details
             Log::debug('Admin - Reservation created', [
                 'id_reservation' => $reservation->id_reservation,
@@ -402,7 +565,9 @@ class ReservationController extends Controller
                 'heure' => $reservation->heure,
                 'etat' => $reservation->etat,
                 'type' => $validatedData['type'],
-                'payment_method' => $validatedData['payment_method'] ?? 'none'
+                'payment_method' => $validatedData['payment_method'] ?? 'none',
+                'advance_payment' => $validatedData['advance_payment'] ?? null,
+                'stripe_payment_intent_id' => $validatedData['payment_intent_id'] ?? null
             ]);
             
             $response = [
@@ -436,7 +601,14 @@ class ReservationController extends Controller
                 'heure' => 'nullable|date_format:H:i:s',
                 'etat' => 'nullable|string|in:reserver,en attente',
                 'Name' => 'nullable|string|max:255',
-                'num_res' => 'nullable|string|max:255'
+                'num_res' => 'nullable|string|max:255',
+                'advance_payment' => 'nullable|numeric',
+                'payment_status' => 'nullable|string|in:paid,partially_paid,unpaid',
+                'payment_method' => 'nullable|string|in:cash,online,stripe',
+                'price' => 'nullable|numeric',
+                'payment_intent_id' => 'nullable|string',
+                'amount' => 'nullable|numeric',
+                'currency' => 'nullable|string',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -469,7 +641,176 @@ class ReservationController extends Controller
                 }
             }
             
+            // Check if there's a payment update
+            $paymentUpdate = false;
+            
+            // If advance_payment is updated
+            $advancePaymentUpdated = isset($validatedData['advance_payment']) && 
+                                     $validatedData['advance_payment'] != $reservation->advance_payment;
+                                     
+            // If Stripe payment is provided
+            $stripePaymentProvided = isset($validatedData['payment_method']) && 
+                                     $validatedData['payment_method'] === 'stripe' && 
+                                     isset($validatedData['payment_intent_id']);
+                                     
+            if ($advancePaymentUpdated || $stripePaymentProvided) {
+                $paymentUpdate = true;
+            }
+            
+            // For Stripe payments with 'paid' status, set etat to 'reserver'
+            if (isset($validatedData['payment_method']) && 
+                $validatedData['payment_method'] === 'stripe' && 
+                isset($validatedData['payment_status']) && 
+                $validatedData['payment_status'] === 'paid') {
+                $validatedData['etat'] = 'reserver';
+            }
+            // If advance_payment is provided and payment_status is partially_paid, set status to 'en attente'
+            else if (isset($validatedData['advance_payment']) && 
+                $validatedData['advance_payment'] > 0 && 
+                isset($validatedData['payment_status']) && 
+                $validatedData['payment_status'] === 'partially_paid') {
+                $validatedData['etat'] = 'en attente';
+            }
+            
+            // If payment is made with Stripe, update advance_payment from amount if not specified
+            if (!isset($validatedData['advance_payment']) && 
+                isset($validatedData['amount']) && 
+                isset($validatedData['payment_method']) && 
+                $validatedData['payment_method'] === 'stripe') {
+                $validatedData['advance_payment'] = $validatedData['amount'];
+            }
+                                     
+            // Update the reservation
             $reservation->update($validatedData);
+            
+            // If payment details need to be updated
+            if ($paymentUpdate) {
+                $paymentStatus = isset($validatedData['payment_status']) ? 
+                    ($validatedData['payment_status'] === 'paid' ? 'completed' : 'pending') : 
+                    'pending';
+                
+                $paymentMethod = isset($validatedData['payment_method']) ? 
+                    $validatedData['payment_method'] : 
+                    'cash';
+                    
+                $fullPrice = isset($validatedData['price']) ? $validatedData['price'] : null;
+                
+                // Get terrain price if full price is not provided
+                if (!$fullPrice) {
+                    $terrain = \App\Models\Terrain::find($reservation->id_terrain);
+                    $fullPrice = $terrain ? $terrain->prix : 0;
+                }
+                
+                $amount = isset($validatedData['advance_payment']) ? 
+                    $validatedData['advance_payment'] : 
+                    (isset($validatedData['amount']) ? $validatedData['amount'] : 0);
+                
+                $currency = isset($validatedData['currency']) ? 
+                    $validatedData['currency'] : 
+                    'MAD';
+                
+                // Check if payment record already exists
+                $payment = \App\Models\Payment::where('id_reservation', $id)->first();
+                
+                if ($payment) {
+                    // Update existing payment
+                    $paymentUpdateData = [
+                        'amount' => $amount,
+                        'status' => $paymentStatus,
+                        'payment_method' => $paymentMethod,
+                        'currency' => $currency,
+                        'payment_details' => json_encode([
+                            'full_price' => $fullPrice,
+                            'advance_payment' => $amount,
+                            'remaining' => $fullPrice - $amount,
+                            'type' => $amount == $fullPrice ? 'full_payment' : 'advance_payment',
+                            'updated_at' => now()->toDateTimeString()
+                        ])
+                    ];
+                    
+                    // Add payment_intent_id if provided
+                    if (isset($validatedData['payment_intent_id'])) {
+                        $paymentUpdateData['stripe_payment_intent_id'] = $validatedData['payment_intent_id'];
+                        // Update payment details to include payment_intent_id
+                        $paymentDetails = json_decode($paymentUpdateData['payment_details'], true);
+                        $paymentDetails['payment_intent_id'] = $validatedData['payment_intent_id'];
+                        $paymentUpdateData['payment_details'] = json_encode($paymentDetails);
+                    }
+                    
+                    $payment->update($paymentUpdateData);
+                    
+                    Log::info('Payment record updated for reservation', [
+                        'reservation_id' => $id,
+                        'payment_id' => $payment->id_payment,
+                        'amount' => $payment->amount,
+                        'status' => $payment->status,
+                        'payment_method' => $payment->payment_method,
+                        'stripe_payment_intent_id' => $payment->stripe_payment_intent_id
+                    ]);
+                } else {
+                    // Create new payment record
+                    $paymentData = [
+                        'amount' => $amount,
+                        'status' => $paymentStatus,
+                        'payment_method' => $paymentMethod,
+                        'currency' => $currency,
+                        'id_reservation' => $id,
+                        'id_compte' => $reservation->id_client,
+                        'payment_details' => json_encode([
+                            'full_price' => $fullPrice,
+                            'advance_payment' => $amount,
+                            'remaining' => $fullPrice - $amount,
+                            'type' => $amount == $fullPrice ? 'full_payment' : 'advance_payment'
+                        ])
+                    ];
+                    
+                    // Add payment_intent_id if provided
+                    if (isset($validatedData['payment_intent_id'])) {
+                        $paymentData['stripe_payment_intent_id'] = $validatedData['payment_intent_id'];
+                        // Update payment details to include payment_intent_id
+                        $paymentDetails = json_decode($paymentData['payment_details'], true);
+                        $paymentDetails['payment_intent_id'] = $validatedData['payment_intent_id'];
+                        $paymentData['payment_details'] = json_encode($paymentDetails);
+                    }
+                    
+                    $payment = \App\Models\Payment::create($paymentData);
+                    
+                    Log::info('Payment record created for existing reservation', [
+                        'reservation_id' => $id,
+                        'payment_id' => $payment->id_payment,
+                        'amount' => $payment->amount,
+                        'status' => $payment->status,
+                        'payment_method' => $payment->payment_method,
+                        'stripe_payment_intent_id' => $payment->stripe_payment_intent_id
+                    ]);
+                }
+                
+                // Send payment confirmation email if status is 'paid'
+                if (isset($validatedData['payment_status']) && 
+                    $validatedData['payment_status'] === 'paid' && 
+                    $reservation->client && 
+                    $reservation->client->email) {
+                    
+                    // Get terrain name
+                    $terrain = \App\Models\Terrain::find($reservation->id_terrain);
+                    $terrainName = $terrain ? $terrain->nom_terrain : 'Unknown';
+                    
+                    $this->sendPaymentConfirmationEmail(
+                        $reservation->client->email,
+                        $reservation->client->nom ?? $reservation->Name ?? 'Client',
+                        $reservation->num_res,
+                        $reservation->date,
+                        $reservation->heure,
+                        $terrainName,
+                        $reservation->etat,
+                        $paymentMethod,
+                        $amount,
+                        $currency
+                    );
+                    
+                    Log::info("Payment confirmation email sent to: " . $reservation->client->email);
+                }
+            }
             
             // Get updated reservation with related data
             $updatedReservation = DB::table('reservation')
@@ -488,6 +829,7 @@ class ReservationController extends Controller
                     'reservation.date',
                     'reservation.heure',
                     'reservation.etat',
+                    'reservation.advance_payment',
                     'reservation.created_at',
                     'reservation.updated_at'
                 ])
@@ -495,6 +837,26 @@ class ReservationController extends Controller
                 ->leftJoin('terrain', 'reservation.id_terrain', '=', 'terrain.id_terrain')
                 ->where('reservation.id_reservation', $id)
                 ->first();
+                
+            // Get payment information
+            $payment = DB::table('payments')
+                ->where('id_reservation', $id)
+                ->orderBy('created_at', 'desc')
+                ->first();
+                
+            $paymentInfo = null;
+            if ($payment) {
+                $paymentInfo = [
+                    'id_payment' => $payment->id_payment,
+                    'amount' => $payment->amount,
+                    'status' => $payment->status,
+                    'payment_method' => $payment->payment_method,
+                    'currency' => $payment->currency,
+                    'stripe_payment_intent_id' => $payment->stripe_payment_intent_id,
+                    'payment_details' => $payment->payment_details ? json_decode($payment->payment_details) : null,
+                    'created_at' => $payment->created_at
+                ];
+            }
                 
             $result = [
                 'id_reservation' => $updatedReservation->id_reservation,
@@ -515,6 +877,8 @@ class ReservationController extends Controller
                 'date' => $updatedReservation->date,
                 'heure' => $updatedReservation->heure,
                 'etat' => $updatedReservation->etat,
+                'advance_payment' => $updatedReservation->advance_payment,
+                'payment' => $paymentInfo,
                 'created_at' => $updatedReservation->created_at,
                 'updated_at' => $updatedReservation->updated_at
             ];

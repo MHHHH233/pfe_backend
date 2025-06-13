@@ -513,13 +513,39 @@ class PlayerTeamController extends Controller
             return response()->json(['message' => 'Player profile not found'], 404);
         }
 
-        $query = PlayerTeam::where('id_player', $player->id_player)
+        // First get all pending invitations
+        $pendingInvitations = PlayerTeam::where('id_player', $player->id_player)
             ->where('status', PlayerTeam::STATUS_PENDING)
-            ->with(['team']);
+            ->get();
+            
+        // Get team IDs to load teams with captain details
+        $teamIds = $pendingInvitations->pluck('id_teams')->toArray();
+        
+        // Load teams with captain details
+        $teams = Teams::whereIn('id_teams', $teamIds)
+            ->with('captain')
+            ->get()
+            ->keyBy('id_teams');
+            
+        // Attach team data to invitations
+        foreach ($pendingInvitations as $invitation) {
+            if (isset($teams[$invitation->id_teams])) {
+                $invitation->setRelation('team', $teams[$invitation->id_teams]);
+            }
+        }
+        
+        // Paginate the results
+        $page = $request->input('page', 1);
+        $perPage = 10;
+        $paginator = new \Illuminate\Pagination\LengthAwarePaginator(
+            $pendingInvitations->forPage($page, $perPage),
+            $pendingInvitations->count(),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
 
-        $invitations = $query->paginate(10);
-
-        return PlayerTeamResource::collection($invitations);
+        return PlayerTeamResource::collection($paginator);
     }
 
     /**

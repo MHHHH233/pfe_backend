@@ -26,7 +26,7 @@ class AuthController extends Controller
         if (count($files) === 0) {
             return 'images/default_pfp/default.png';
         }
-        $baseUrl = 'https://moulweb.com/back/pfe_backend/public/';
+        $baseUrl = 'http://localhost:8000/';
         $randomFile = $files[array_rand($files)];
         return $baseUrl . 'images/default_pfp/' . $randomFile->getFilename();
     }

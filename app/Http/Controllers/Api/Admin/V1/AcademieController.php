@@ -34,8 +34,8 @@ class AcademieController extends Controller
                 'nom' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'date_creation' => 'required|date',
-                'plan_base' => 'nullable|string',
-                'plan_premium' => 'nullable|string',
+                'plan_base' => 'nullable|numeric',
+                'plan_premium' => 'nullable|numeric',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);
@@ -56,8 +56,8 @@ class AcademieController extends Controller
                 'nom' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'date_creation' => 'required|date',
-                'plan_base' => 'nullable|string',
-                'plan_premium' => 'nullable|string',
+                'plan_base' => 'nullable|numeric',
+                'plan_premium' => 'nullable|numeric',
             ]);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 400);

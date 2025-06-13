@@ -14,8 +14,11 @@ class Academie extends Model
     public $timestamps = true;
 
     protected $fillable = [
-        'name',
+        'nom',
         'description',
+        'date_creation',
+        'plan_base',
+        'plan_premium',
         'logo',
         'cover_image',
         'location',

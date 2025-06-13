@@ -18,9 +18,12 @@ use App\Models\AcademieActivites;
 use App\Models\AcademieCoach;
 use App\Models\AcademieProgramme;
 use App\Models\ActivitesMembers;
+use App\Models\Payment;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class AnalyticsController extends Controller
 {
@@ -41,6 +44,12 @@ class AnalyticsController extends Controller
         $totalAcademieCoaches = AcademieCoach::count();
         $totalAcademieProgrammes = AcademieProgramme::count();
         $totalActivitesMembers = ActivitesMembers::count();
+        
+        // Calculate total revenue
+        $totalRevenue = Payment::where('status', 'completed')->sum('amount');
+        $todayRevenue = Payment::where('status', 'completed')
+            ->whereDate('created_at', today())
+            ->sum('amount');
 
         return response()->json([
             'total_reservations' => $totalReservations,
@@ -58,7 +67,95 @@ class AnalyticsController extends Controller
             'total_academie_coaches' => $totalAcademieCoaches,
             'total_academie_programmes' => $totalAcademieProgrammes,
             'total_activites_members' => $totalActivitesMembers,
+            'total_revenue' => $totalRevenue,
+            'today_revenue' => $todayRevenue,
         ]);
+    }
+    
+    /**
+     * Get analytics within a date range
+     * 
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getAnalyticsByDateRange(Request $request): JsonResponse
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation error',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+            
+            $startDate = $request->start_date;
+            $endDate = $request->end_date;
+            
+            $totalReservations = Reservation::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalComptes = Compte::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalTournois = Tournoi::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalTerrains = Terrain::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalReportedBugs = ReportedBug::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalRatings = Rating::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalPlayerRequests = PlayerRequest::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalMatches = Matches::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalPlayers = Players::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalStages = Stages::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalTeams = Teams::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalAcademieActivites = AcademieActivites::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalAcademieCoaches = AcademieCoach::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalAcademieProgrammes = AcademieProgramme::whereBetween('created_at', [$startDate, $endDate])->count();
+            $totalActivitesMembers = ActivitesMembers::whereBetween('created_at', [$startDate, $endDate])->count();
+            
+            // Calculate revenue for the date range
+            $totalRevenue = Payment::where('status', 'completed')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->sum('amount');
+                
+            // Daily revenue breakdown
+            $dailyRevenue = Payment::where('status', 'completed')
+                ->whereBetween('created_at', [$startDate, $endDate])
+                ->select(
+                    DB::raw('DATE(created_at) as date'),
+                    DB::raw('SUM(amount) as daily_revenue')
+                )
+                ->groupBy('date')
+                ->orderBy('date')
+                ->get();
+
+            return response()->json([
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'total_reservations' => $totalReservations,
+                'total_comptes' => $totalComptes,
+                'total_tournois' => $totalTournois,
+                'total_terrains' => $totalTerrains,
+                'total_reported_bugs' => $totalReportedBugs,
+                'total_ratings' => $totalRatings,
+                'total_player_requests' => $totalPlayerRequests,
+                'total_matches' => $totalMatches,
+                'total_players' => $totalPlayers,
+                'total_stages' => $totalStages,
+                'total_teams' => $totalTeams,
+                'total_academie_activites' => $totalAcademieActivites,
+                'total_academie_coaches' => $totalAcademieCoaches,
+                'total_academie_programmes' => $totalAcademieProgrammes,
+                'total_activites_members' => $totalActivitesMembers,
+                'total_revenue' => $totalRevenue,
+                'daily_revenue' => $dailyRevenue,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to fetch analytics by date range',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
     
     /**

@@ -21,10 +21,12 @@ class Reservation extends Model
         'etat',
         'Name',
         'num_res',
+        'advance_payment',
     ];
 
     protected $casts = [
-        'etat' => 'string'
+        'etat' => 'string',
+        'advance_payment' => 'float'
     ];
 
     /**

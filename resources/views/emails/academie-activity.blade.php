@@ -147,7 +147,7 @@
             
             <p>Don't miss this opportunity! Visit your academy portal for more details.</p>
             
-            <a href="https://moulweb.com/events" class="button">View Details</a>
+            <a href="http://localhost:8000/events" class="button">View Details</a>
         </div>
         
         <div class="footer">

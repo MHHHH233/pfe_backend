@@ -95,6 +95,7 @@ Route::prefix('admin')->as('admin.')->group(function () {
         
         
         Route::get('analytics', [AnalyticsController::class,'getAnalytics']);
+        Route::get('analytics/date-range', [AnalyticsController::class,'getAnalyticsByDateRange']);
         Route::get('notifications', [AnalyticsController::class,'getNotificationAnalytics']);
         Route::patch('notifications/mark-all-read', [AnalyticsController::class, 'markAllNotificationsAsRead']);
     });
